@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<access component="com_removesampledata">
+    <section name="component">
+        <action name="core.admin" title="JACTION_ADMIN" />
+        <action name="core.manage" title="JACTION_MANAGE" />
+        <action name="core.options" title="JACTION_OPTIONS" />
+        <action name="removesampledata.scan" title="COM_REMOVESAMPLEDATA_ACTION_SCAN" />
+        <action name="removesampledata.remove" title="COM_REMOVESAMPLEDATA_ACTION_REMOVE" />
+    </section>
+</access>

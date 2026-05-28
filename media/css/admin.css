@@ -1,0 +1,65 @@
+/**
+ * @package    Cybersalt.Component.Removesampledata
+ * Avoid setting background/text colors — let Atum handle dark/light mode.
+ */
+
+.rsd-lockout {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.55);
+    z-index: 1080;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.rsd-lockout-inner {
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    padding: 2rem 2.5rem;
+    border-radius: .5rem;
+    text-align: center;
+    color: #fff;
+    max-width: 28rem;
+}
+
+.rsd-lockout-inner .spinner-border {
+    margin-bottom: 1rem;
+}
+
+#rsd-log-table pre {
+    max-width: 60ch;
+    white-space: pre-wrap;
+}
+
+/* Highlight edited rows without setting a background — keeps Atum
+   dark/light theming intact. A 4px left border in Bootstrap warning
+   yellow signals the row is flagged. */
+tr.rsd-row-edited > td:first-child {
+    border-left: 4px solid var(--warning, #f0ad4e);
+}
+
+/* The confirm modal — Atum's default modal styles can squash the body's
+   padding to almost nothing, leaving the text and checkbox flush against
+   the modal edges. Override with comfortable padding all round.
+   !important is necessary here because Atum's stylesheet loads after
+   ours and uses equal selector specificity on `.modal-body` etc., so
+   the cascade picks Atum's tighter values without a priority boost. */
+#rsd-confirm .modal-header,
+#rsd-confirm .modal-footer {
+    padding: 1rem 1.25rem !important;
+}
+#rsd-confirm .modal-body {
+    padding: 1.25rem 1.5rem !important;
+}
+#rsd-confirm .modal-body p,
+#rsd-confirm .modal-body .form-check,
+#rsd-confirm .modal-body .alert {
+    margin-bottom: 1rem !important;
+}
+#rsd-confirm .modal-body .form-check:last-child,
+#rsd-confirm .modal-body p:last-child {
+    margin-bottom: 0 !important;
+}
+#rsd-confirm .form-check-label {
+    margin-left: 0.5rem !important;
+}

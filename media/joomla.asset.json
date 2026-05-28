@@ -1,0 +1,22 @@
+{
+    "$schema": "https://developer.joomla.org/schemas/json-schema/web_assets.json",
+    "name": "com_removesampledata",
+    "version": "1.0.15",
+    "description": "Remove Sample Data administrator assets",
+    "license": "GPL-2.0-or-later",
+    "assets": [
+        {
+            "name": "com_removesampledata.admin",
+            "type": "style",
+            "uri": "com_removesampledata/admin.css"
+        },
+        {
+            "name": "com_removesampledata.admin",
+            "type": "script",
+            "uri": "com_removesampledata/admin.js",
+            "attributes": {
+                "defer": true
+            }
+        }
+    ]
+}

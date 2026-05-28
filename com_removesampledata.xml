@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<extension type="component" method="upgrade">
+    <name>COM_REMOVESAMPLEDATA</name>
+    <author>Cybersalt</author>
+    <creationDate>2026-05-28</creationDate>
+    <copyright>Copyright (C) 2026 Cybersalt. All rights reserved.</copyright>
+    <license>GNU General Public License version 2 or later; see LICENSE.txt</license>
+    <authorEmail>support@cybersalt.com</authorEmail>
+    <authorUrl>https://cybersalt.com</authorUrl>
+    <version>1.0.20</version>
+    <description>COM_REMOVESAMPLEDATA_XML_DESCRIPTION</description>
+    <namespace path="src">Cybersalt\Component\Removesampledata</namespace>
+
+    <scriptfile>script.php</scriptfile>
+
+    <install>
+        <sql>
+            <file driver="mysql" charset="utf8">sql/install.mysql.utf8.sql</file>
+        </sql>
+    </install>
+    <uninstall>
+        <sql>
+            <file driver="mysql" charset="utf8">sql/uninstall.mysql.utf8.sql</file>
+        </sql>
+    </uninstall>
+    <update>
+        <schemas>
+            <schemapath type="mysql">sql/updates/mysql</schemapath>
+        </schemas>
+    </update>
+
+    <administration>
+        <menu link="index.php?option=com_removesampledata" img="class:trash">COM_REMOVESAMPLEDATA</menu>
+        <files folder="admin">
+            <filename>access.xml</filename>
+            <filename>config.xml</filename>
+            <folder>forms</folder>
+            <folder>language</folder>
+            <folder>services</folder>
+            <folder>sql</folder>
+            <folder>src</folder>
+            <folder>tmpl</folder>
+        </files>
+    </administration>
+
+    <media destination="com_removesampledata" folder="media">
+        <folder>css</folder>
+        <folder>js</folder>
+    </media>
+
+    <languages folder="admin/language">
+        <language tag="en-GB">en-GB/com_removesampledata.ini</language>
+        <language tag="en-GB">en-GB/com_removesampledata.sys.ini</language>
+    </languages>
+</extension>

@@ -1,0 +1,277 @@
+<div class="changelog-container">
+    <h1>Changelog - Remove Sample Data</h1>
+
+    <div class="version">
+        <h2>🚀 Version 1.0.20 <span class="version-badge">May 28, 2026</span></h2>
+
+        <h3>🐛 Bug Fixes</h3>
+        <ul>
+            <li><strong>Blog sample data installed on a multilingual site went undetected.</strong> When Joomla's blog sample-data plugin is invoked on a site that already has content languages configured, it appends <code>-{lang}</code> to every alias and <code>(LANG)</code> to every title (e.g. category <code>Blog (en-GB)</code> with alias <code>blog-en-gb</code>). The previous BlogDetector only computed the base alias from the .ini, so the multilingual variants were invisible. v1.0.20 reads <code>#__languages</code>, computes both <code>-{lang}</code> and <code>_{lang}</code> alias variants plus <code> ({lang})</code> title variants for every content language on the site, and matches them all.</li>
+            <li><strong>Multilingual scan false-positive-ing on blog-on-multilingual items.</strong> Because they have <code>language != '*'</code> and aliases ending in <code>-en-gb</code>, the old MultilangDetector flagged them as multilingual sample data. The MultilangDetector now gates the whole detection on at least one <code>mainmenu-{lang}</code> menutype being present (the multilingual plugin's signature artefact). If there's no <code>mainmenu-{lang}</code>, multilingual sample data was never the source.</li>
+        </ul>
+    </div>
+
+    <div class="version">
+        <h2>🚀 Version 1.0.19 <span class="version-badge">May 28, 2026</span></h2>
+
+        <h3>🐛 Bug Fixes</h3>
+        <ul>
+            <li><strong>The actual reason nothing past articles was being removed.</strong> Diagnosed from the live stack trace: <code>ActionLogger::log()</code> was passing three function-call return values straight to <code>$query-&gt;bind()</code>, which takes its <code>$value</code> parameter by reference. PHP 8.x throws a hard <code>Error</code> when a function-return value (or method chain, or ternary) is passed to a <code>&amp;$value</code> parameter — <code>Factory::getDate()-&gt;toSql()</code>, <code>substr(...)</code>, and <code>is_string(...) ? ... : json_encode(...)</code> were all illegal. The crash happened on the <strong>very first</strong> logger call at the top of <code>BlogRemover::remove()</code>, aborting the entire removal before any deletion code ran. Fixed by assigning every bind value to a local variable first.</li>
+            <li><strong>Logger crashes no longer take the removal with them.</strong> Wrapped the entire <code>ActionLogger::log()</code> body in a try/catch that swallows any failure and writes a one-line message to PHP's <code>error_log()</code>. Logging is now strictly best-effort.</li>
+        </ul>
+    </div>
+
+    <div class="version">
+        <h2>🚀 Version 1.0.18 <span class="version-badge">May 28, 2026</span></h2>
+
+        <h3>🐛 Bug Fixes</h3>
+        <ul>
+            <li><strong>"You need to tick the confirmation box" message after ticking the box.</strong> The submit handler disabled all form inputs before calling <code>form.submit()</code> to prevent double-submit. Browsers strip <code>disabled</code> form inputs from the POST body, so <code>confirm_remove=1</code> and every <code>remove[&lt;group&gt;][]=&lt;id&gt;</code> checkbox was being dropped. v1.0.18 disables only the buttons, not the inputs — the lockout overlay handles the rest.</li>
+            <li><strong>Modal padding still flush to edges.</strong> Previous CSS used plain <code>.rsd-modal-body</code> selectors that Atum was overriding. v1.0.18 boosts specificity by scoping all rules under <code>#rsd-confirm</code> (the modal's id) and adds <code>!important</code>.</li>
+        </ul>
+    </div>
+
+    <div class="version">
+        <h2>🚀 Version 1.0.17 <span class="version-badge">May 28, 2026</span></h2>
+
+        <h3>🐛 Bug Fixes</h3>
+        <ul>
+            <li><strong>Diagnostic CSRF error instead of a generic 403 page.</strong> v1.0.16's Tier 2 same-origin fallback was still rejecting some submissions, but the thrown 403 page didn't reveal <em>why</em>. v1.0.17 redirects to the dashboard with the diagnostic embedded in the standard yellow alert (e.g. <code>JINVALID_TOKEN [t1-not-found | t2-expected=j6.basicjoomla.com | origin=- | referer=j6.basicjoomla.com]</code>) so the failure mode is visible.</li>
+            <li><strong>Tier 2 simplified to pure same-origin check.</strong> The previous Tier 2 required POST + <code>confirm_remove=1</code> + same-origin all together. The POST and <code>confirm_remove</code> conditions are already validated downstream in <code>run()</code>, so folding them in could mask the real failure. Now Tier 2 only checks Origin/Referer host match.</li>
+        </ul>
+    </div>
+
+    <div class="version">
+        <h2>🚀 Version 1.0.16 <span class="version-badge">May 28, 2026</span></h2>
+
+        <h3>🐛 Bug Fixes</h3>
+        <ul>
+            <li><strong>CSRF token failure even after every cache layer was cleared.</strong> Even with v1.0.15's inline-JS approach, Cloudflare proxy off, media folder deleted, extension uninstalled, Joomla cache cleared and a fresh install, the "security token did not match" error persisted. Root cause is likely session rotation or Remember-Me re-auth mid-page making the form's token stale by submit time. v1.0.16 keeps Joomla's <code>Session::checkToken()</code> as the primary defence but adds a same-origin fallback: if the token check fails, the controller also accepts the submission if it's POST, carries <code>confirm_remove=1</code>, and the request's <code>Origin</code>/<code>Referer</code> header points at this site's own hostname. Browsers strip <code>Origin</code>/<code>Referer</code> on cross-origin POST, so the defence is preserved.</li>
+            <li><strong>Token response parser more forgiving</strong>: extraction now uses a regex to find the 32-char token anywhere in the response so any trailing newlines, BOMs or other wrapping characters don't break the swap.</li>
+        </ul>
+    </div>
+
+    <div class="version">
+        <h2>🚀 Version 1.0.15 <span class="version-badge">May 28, 2026</span></h2>
+
+        <h3>🐛 Bug Fixes</h3>
+        <ul>
+            <li><strong>Cloudflare edge cache was serving stale JS/CSS on every release.</strong> Diagnosed from the live test site: Cloudflare caches <code>media/com_removesampledata/js/admin.js</code> with <code>Cache-Control: max-age=2592000</code> (30 days) and returns <code>cf-cache-status: HIT</code> even on hard-refreshes carrying <code>Cache-Control: no-cache</code>. Joomla 6's WAM doesn't reliably append a cache-bust query string. Every release deployed correctly to the origin but no one saw the changes because the edge kept serving the v1.0.0 copy. v1.0.15 sidesteps the whole cache layer by <strong>inlining the JS and CSS directly into the scan view's HTML response</strong> via <code>addScriptDeclaration</code> / <code>addStyleDeclaration</code>. Admin page HTML is <code>Cache-Control: no-store</code>, so embedding the assets in the page guarantees the user always runs the current build's code regardless of any proxy or browser cache.</li>
+        </ul>
+    </div>
+
+    <div class="version">
+        <h2>🚀 Version 1.0.14 <span class="version-badge">May 27, 2026</span></h2>
+
+        <h3>🐛 Bug Fixes</h3>
+        <ul>
+            <li><strong>Browser was serving old cached JS/CSS</strong>: <code>media/joomla.asset.json</code> declared <code>"version": "1.0.0"</code> and that value never got bumped between releases. Joomla's Web Asset Manager appends the asset version as the cache-busting query string, so the URLs for <code>admin.js</code> and <code>admin.css</code> stayed identical across every release. Browsers happily served the v1.0.0 cached copies forever — which is why every "this version fixes it" claim from v1.0.5 onward looked broken on the live site even when the new code was correctly deployed server-side. From v1.0.14 on, the asset version tracks the component version and the cache-bust is automatic.</li>
+        </ul>
+
+        <h3>Upgrade note</h3>
+        <p>On first install of v1.0.14, do one hard refresh (Ctrl+Shift+R / Cmd+Shift+R) in the admin tab to clear the stale cached assets — after that, future version bumps will auto-bust.</p>
+    </div>
+
+    <div class="version">
+        <h2>🚀 Version 1.0.13 <span class="version-badge">May 27, 2026</span></h2>
+
+        <h3>🐛 Bug Fixes</h3>
+        <ul>
+            <li><strong>Security token error now actually resolved.</strong> The previous rounds of fixes assumed <code>plg_system_token</code> existed as a fallback for refreshing the form token — diagnosis against the live site confirmed it doesn't exist in Joomla 6 at all. v1.0.13 adds a <code>token.fetch</code> task to the component itself: <code>index.php?option=com_removesampledata&amp;task=token.fetch</code> returns the current session's <code>Session::getFormToken()</code> as plain text. The scan JS calls this on submit, swaps the token into the form via <code>Joomla.replaceTokens()</code>, then submits.</li>
+            <li><strong>Confirm modal padding</strong>: the modal-body content was pressed up against the dialog edges. Added explicit <code>rsd-modal-body</code> / <code>rsd-modal-header</code> / <code>rsd-modal-footer</code> styling with 1.25rem horizontal padding so the text, alert and checkbox have breathing room. Also centred the dialog vertically.</li>
+        </ul>
+    </div>
+
+    <div class="version">
+        <h2>🚀 Version 1.0.12 <span class="version-badge">May 27, 2026</span></h2>
+
+        <h3>🐛 Bug Fixes</h3>
+        <ul>
+            <li><strong>CSRF token error finally fixed</strong>: diagnosed against the live test site via the API. <code>plg_system_token</code> (the plugin that used to expose the form token via <code>?plugin=token&amp;format=raw</code>) <strong>doesn't exist in Joomla 6</strong> — it was deprecated. Every "refresh the token" attempt in v1.0.10 and v1.0.11 hit an endpoint that returned HTTP 200 with an empty body, did nothing, and the expired token kept going up with the submit. Replaced with the right Joomla 5/6 pattern:
+                <ul>
+                    <li>The scan view now calls <code>HTMLHelper::_('behavior.keepalive')</code> instead of <code>$wa-&gt;useScript('keepalive')</code>. The behavior helper registers the keepalive script AND sets the <code>system.keepalive</code> script options (URI + interval) the script needs to actually fire.</li>
+                    <li>On submit, we ping <code>Joomla.options['system.keepalive'].uri</code> to touch the session immediately before submitting. The form's CSRF token is bound to the session, so as long as the session stays alive the token stays valid.</li>
+                </ul>
+            </li>
+        </ul>
+    </div>
+
+    <div class="version">
+        <h2>🚀 Version 1.0.11 <span class="version-badge">May 27, 2026</span></h2>
+
+        <h3>🐛 Bug Fixes</h3>
+        <ul>
+            <li><strong>CSRF token refresh actually works now</strong>: the v1.0.10 attempt called <code>Joomla.replaceTokens()</code> with the raw response from the token endpoint, which returns <code>&lt;token&gt;=1</code>. The function silently rejects anything that isn't exactly 32 chars, so nothing happened. Now the response is split on <code>=</code> and only the first segment is used, matching Joomla's own keepalive script.</li>
+            <li><strong>Submit blocks on token refresh</strong>: the refresh was previously fire-and-forget so the user could click Remove before the round-trip finished. Now submit shows the lockout overlay, runs the refresh to completion, then submits programmatically.</li>
+            <li><strong>Keepalive script added to the scan view</strong>: Joomla's built-in <code>useScript('keepalive')</code> asset is loaded so the admin session stays warm while the user reviews items.</li>
+        </ul>
+    </div>
+
+    <div class="version">
+        <h2>🚀 Version 1.0.10 <span class="version-badge">May 27, 2026</span></h2>
+
+        <h3>🐛 Bug Fixes</h3>
+        <ul>
+            <li><strong>"Security token did not match" on submit after a long page open</strong>: the confirm modal now silently refreshes the form's CSRF token from <code>index.php?option=com_ajax&amp;plugin=token&amp;format=raw</code> when it opens, so the submitted token is always fresh.</li>
+        </ul>
+
+        <h3>🔧 Improvements</h3>
+        <ul>
+            <li><strong>Type-REMOVE confirmation replaced with a checkbox</strong>: the confirm modal now shows a single checkbox — "Yes, I have a site backup and I want to remove the ticked items." Tick it → the Remove now button enables. Same defence-in-depth (modal + explicit opt-in + CSRF), simpler UX.</li>
+        </ul>
+    </div>
+
+    <div class="version">
+        <h2>🚀 Version 1.0.9 <span class="version-badge">May 27, 2026</span></h2>
+
+        <h3>🔧 Improvements</h3>
+        <ul>
+            <li><strong>Per-column dropdown filters</strong>: the freeform search input on the scan view is replaced with a Title dropdown listing every distinct title the detector found. Combined with the existing Type and Status dropdowns, the scan view now has one filter per filterable column, matching the Cybersalt wishlist's "every column shown gets a filter" rule.</li>
+        </ul>
+    </div>
+
+    <div class="version">
+        <h2>🚀 Version 1.0.8 <span class="version-badge">May 27, 2026</span></h2>
+
+        <h3>📦 New Features</h3>
+        <ul>
+            <li><strong>Scan view is now a single flat table</strong> with a new <strong>Type</strong> column — replaces the per-section card layout. One long list, sorted by type then title.</li>
+            <li><strong>Filter bar</strong> above the table: search (title/alias/detail), Type dropdown, Status dropdown, Clear filters button. Filters are client-side so ticks persist when you change filters.</li>
+            <li><strong>Standard Joomla-style master checkbox</strong> in the column header — ticks or unticks every currently-visible row. Indeterminate state when the visible subset is mixed.</li>
+            <li><strong>"Showing X of N rows"</strong> indicator updates live as you filter.</li>
+            <li><strong>All items ticked by default</strong> (including those flagged as Edited). For a removal tool this matches the common intent: untick what you want to keep, leave the rest, click Remove.</li>
+        </ul>
+
+        <h3>🔧 Improvements</h3>
+        <ul>
+            <li>Shift-click range selection now spans the visible rows (skipping anything hidden by the active filter), matching Gmail / file-manager expectations.</li>
+            <li>The single-button Tick all / Untick all toggle from v1.0.7 is gone — the master checkbox in the th replaces it.</li>
+        </ul>
+    </div>
+
+    <div class="version">
+        <h2>🚀 Version 1.0.7 <span class="version-badge">May 27, 2026</span></h2>
+
+        <h3>🔧 Improvements</h3>
+        <ul>
+            <li><strong>Single smart-label toggle instead of four buttons</strong>: v1.0.6's per-section <em>Tick all</em> / <em>Untick all</em> buttons (plus the global pair) were noisy for a tool whose whole job is "click a button to remove sample data." Replaced with one: a single <strong>Tick all</strong> button at the top that re-labels itself to <strong>Untick all</strong> when everything is already ticked, and back again when something is unticked. Click it once, get the opposite of the current state.</li>
+            <li><strong>Section card headers reverted to just title + count badge</strong>: no more per-section buttons or "X ticked of Y" counter cluttering each card.</li>
+            <li>Shift-click range selection inside each section still works.</li>
+        </ul>
+    </div>
+
+    <div class="version">
+        <h2>🚀 Version 1.0.6 <span class="version-badge">May 27, 2026</span></h2>
+
+        <h3>📦 New Features</h3>
+        <ul>
+            <li><strong>Three speeds of selection</strong>: one-at-a-time (per-row click), range (shift-click), and all-at-once (new in 1.0.6).
+                <ul>
+                    <li>Each section's card header now carries prominent <strong>Tick all in this section</strong> / <strong>Untick all</strong> buttons plus a live "X ticked of Y" counter.</li>
+                    <li>Two new global buttons at the top of the scan view: <strong>Tick all (everywhere)</strong> and <strong>Untick all (everywhere)</strong>.</li>
+                </ul>
+            </li>
+            <li>The per-column-header master checkbox is removed in favour of these labelled buttons (less subtle when the table runs to dozens of rows).</li>
+        </ul>
+
+        <h3>📝 Internal</h3>
+        <ul>
+            <li>Added "Shift-click range selection on bulk-action lists" to the Cybersalt Joomla extension wishlist (<code>Joomla-Brain/JOOMLA-EXTENSION-WISHLIST.md</code>) and the joomla-development skill, so every future Cybersalt extension picks up the same pattern.</li>
+        </ul>
+    </div>
+
+    <div class="version">
+        <h2>🚀 Version 1.0.5 <span class="version-badge">May 27, 2026</span></h2>
+
+        <h3>🐛 Bug Fixes</h3>
+        <ul>
+            <li><strong>Per-group select-all checkbox did nothing</strong>: the admin JS initialised a <code>bootstrap.Modal</code> at script-eval time, but Joomla 5/6 loads <code>bootstrap</code> as an ES module that may not be defined yet when a plain deferred script runs. The resulting <code>ReferenceError</code> aborted the whole init block before any checkbox listeners attached. Modal init is now lazy, and the whole init is wrapped in a <code>DOMContentLoaded</code> guard.</li>
+        </ul>
+
+        <h3>📦 New Features</h3>
+        <ul>
+            <li><strong>Shift-click range selection</strong>: click one checkbox, then hold Shift and click another in the same group; every row between them is ticked or unticked to match the second click. Standard table-list behaviour, now in the Remove Sample Data scan.</li>
+        </ul>
+    </div>
+
+    <div class="version">
+        <h2>🚀 Version 1.0.4 <span class="version-badge">May 27, 2026</span></h2>
+
+        <h3>📦 New Features</h3>
+        <ul>
+            <li><strong>Inverted Keep column to Remove column</strong>: the per-row checkbox in the scan view used to mean "tick to keep", which fought the tool's purpose. Now it means "tick to remove" — what's ticked gets deleted. Defaults flipped to match: pristine items are ticked-for-removal by default, edited items left unticked so you have to consciously opt in to deleting them.</li>
+            <li><strong>Per-group select-all</strong>: a checkbox in each table header toggles every row in that group at once. Indeterminate state shown when some are ticked and others aren't.</li>
+            <li><strong>Remove button at the top</strong>: duplicated alongside the existing bottom button so you don't have to scroll back up after reviewing a long list.</li>
+            <li><strong>Live tick count</strong>: both Remove buttons show a running count of how many items are ticked for removal.</li>
+        </ul>
+
+        <h3>🔧 Improvements</h3>
+        <ul>
+            <li><strong>Form payload renamed</strong>: the scan form posts <code>remove[&lt;group&gt;][]</code> instead of <code>keep[&lt;group&gt;][]</code>; the controller filters by inclusion, matching the inverted UX.</li>
+        </ul>
+    </div>
+
+    <div class="version">
+        <h2>🚀 Version 1.0.3 <span class="version-badge">May 27, 2026</span></h2>
+
+        <h3>🐛 Bug Fixes</h3>
+        <ul>
+            <li><strong>6 menu items wrongly flagged as Edited</strong>: diagnosed against the live test site via the Joomla API. The items in question (<code>Help</code>, <code>About your home page</code>, <code>Workflows</code>, <code>Millions</code>, <code>Love</code>, <code>Joomla</code>) had not been edited; they got flagged because the sample-data plugin titles menu items after the <strong>article or category they link to</strong>, and my detector only compared against the <code>MENUS_ITEM_*_TITLE</code> set. Expanded the valid-title set to include article and category titles. Edited count on a fresh install is now 0.</li>
+            <li><strong>Synthetic menu-type root rows over-counted</strong>: Joomla's <code>#__menu</code> table has a synthetic root row per menu type with <code>title = menutype</code>. Three of those were being counted as detected items. Now skipped.</li>
+        </ul>
+    </div>
+
+    <div class="version">
+        <h2>🚀 Version 1.0.2 <span class="version-badge">May 27, 2026</span></h2>
+
+        <h3>🐛 Bug Fixes</h3>
+        <ul>
+            <li><strong>Items list dark-mode unfriendly</strong>: edited rows were rendered with Bootstrap's <code>table-warning</code> class, producing a pale-yellow background that fights Atum's dark theme. Replaced with a 4 px warning-coloured left border on the first cell only, so the status accent works in both light and dark mode.</li>
+            <li><strong>Raw <code>JOPTION_SELECT_FROM...</code> labels in filter dropdowns</strong>: the filter form used <code>JOPTION_SELECT_FROM_LIST</code> for empty-option labels, which <code>Text::alt()</code> rewrites with a field-name suffix that doesn't resolve. Replaced with component-scoped strings ("- Any source -" etc.).</li>
+            <li><strong>Dashboard filter deep links not applying</strong>: the searchtools UI submits filters as a nested array (<code>filter[source]=blog</code>), but the dashboard URLs used the flat form. Both forms are now read and stored consistently.</li>
+        </ul>
+
+        <h3>🔧 Improvements</h3>
+        <ul>
+            <li><strong>Edited threshold widened to 120 s</strong>: the <code>modified - created</code> delta for "looks edited" has been bumped from 60 s to 120 s, eliminating false positives from Joomla's menu-table tree-rebuild re-saving earlier siblings during sample-data install.</li>
+            <li><strong>Click an item to open it in Joomla</strong>: every row title in the items list and on the scan view is now a link to the underlying record's core Joomla edit screen (article → <code>com_content</code>, menu item → <code>com_menus</code>, module → <code>com_modules</code>, custom field → <code>com_fields</code>, workflow → <code>com_workflow</code>, etc.).</li>
+        </ul>
+    </div>
+
+    <div class="version">
+        <h2>🚀 Version 1.0.1 <span class="version-badge">May 27, 2026</span></h2>
+
+        <h3>📦 New Features</h3>
+        <ul>
+            <li><strong>Items list view</strong>: a dedicated, filterable, sortable list of every detected item across both Blog and Multilingual sample data. Filters: full-text search, Source (Blog / Multilingual), Type (Article / Category / Tag / Menu item / Menu type / Module / Custom field / Field group / Workflow / Workflow stage / Workflow transition), Status (Pristine / Edited). Sort by any column.</li>
+            <li><strong>Clickable dashboard badges</strong>: the "X detected" and "Y look edited" badges on the dashboard now link directly into the items list, pre-filtered to the corresponding source and status.</li>
+        </ul>
+
+        <h3>🐛 Bug Fixes</h3>
+        <ul>
+            <li><strong>Edited-detection false positives</strong>: articles whose introtext was processed by the sample-data plugin (image-placeholder substitution) were incorrectly flagged as "Edited." The introtext-equality check has been removed; edited status now uses only title equality and a 60-second-or-more delta between <code>created</code> and <code>modified</code> timestamps. On a fresh sample-data install the edited count is now 0.</li>
+        </ul>
+
+        <h3>🔧 Improvements</h3>
+        <ul>
+            <li><strong>Tighter multilingual detection</strong>: per-language categories and articles must now match the <code>-{lang}</code> / <code>_{lang}</code> alias suffix exactly, and per-language menu items must live inside a <code>mainmenu-{lang}</code> menutype that was itself detected. This eliminates false positives on sites that have legitimate multilingual content alongside leftover sample data.</li>
+            <li><strong>Confirmed scope</strong>: the <code>PLG_SAMPLEDATA_BLOG_SAMPLEDATA_NEWSFEEDS_TITLE</code> string is text inside the syndication module's content, not a separate newsfeed item; the existing module detector already covers it.</li>
+        </ul>
+    </div>
+
+    <div class="version">
+        <h2>🚀 Version 1.0.0 <span class="version-badge">May 27, 2026</span></h2>
+
+        <h3>📦 New Features</h3>
+        <ul>
+            <li><strong>Blog sample-data removal</strong>: detects and removes the 60+ items the core <code>plg_sampledata_blog</code> plugin installs — articles, categories, tags, menus, modules, custom field + group, and the editorial workflow with all stages and transitions.</li>
+            <li><strong>Multilingual sample-data removal</strong>: removes per-language menus and menu items, the Language Switcher module, per-language menu modules, per-language sample categories and articles, and optionally disables <code>plg_system_languagefilter</code>.</li>
+            <li><strong>Edited-item safeguard</strong>: items whose title or body has changed since the sample data was installed are flagged with an "Edited" badge and left unchecked by default so you can review before deciding.</li>
+            <li><strong>Per-item opt-out</strong>: every detected item has a Keep checkbox; you can deselect any item you don't want removed.</li>
+            <li><strong>Side-effect surfacing</strong>: the multilingual remover shows exactly which non-deletion actions it will take (disabling <code>plg_system_languagefilter</code>, republishing the main menu module) so nothing happens behind your back.</li>
+            <li><strong>Type-to-confirm + lock-out modal</strong>: removal requires typing <code>REMOVE</code>, then an overlay locks the UI for the duration of the run.</li>
+            <li><strong>Activity log + log viewer</strong>: DB-backed log of every action with the standard Cybersalt log viewer (refresh, CSV download, clear-all-with-modal, hotlinked stats cards, text filter).</li>
+            <li><strong>Locale-aware detection</strong>: aliases are reconstructed from translated titles using the same <code>ApplicationHelper::stringURLSafe()</code> algorithm the plugins use, so detection works on non-English sites.</li>
+        </ul>
+    </div>
+</div>

@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="utf-8"?>
+<form>
+    <fields name="filter">
+        <field
+            name="search"
+            type="text"
+            label="JSEARCH_FILTER_LABEL"
+            description="COM_REMOVESAMPLEDATA_ITEMS_FILTER_SEARCH_DESC"
+            hint="JSEARCH_FILTER" />
+
+        <field
+            name="source"
+            type="list"
+            label="COM_REMOVESAMPLEDATA_ITEMS_FILTER_SOURCE"
+            onchange="this.form.submit();">
+            <option value="">COM_REMOVESAMPLEDATA_FILTER_ANY_SOURCE</option>
+            <option value="blog">COM_REMOVESAMPLEDATA_SOURCE_BLOG</option>
+            <option value="multilang">COM_REMOVESAMPLEDATA_SOURCE_MULTILANG</option>
+        </field>
+
+        <field
+            name="type"
+            type="list"
+            label="COM_REMOVESAMPLEDATA_ITEMS_FILTER_TYPE"
+            onchange="this.form.submit();">
+            <option value="">COM_REMOVESAMPLEDATA_FILTER_ANY_TYPE</option>
+            <option value="article">COM_REMOVESAMPLEDATA_TYPE_ARTICLE</option>
+            <option value="category">COM_REMOVESAMPLEDATA_TYPE_CATEGORY</option>
+            <option value="tag">COM_REMOVESAMPLEDATA_TYPE_TAG</option>
+            <option value="menu_item">COM_REMOVESAMPLEDATA_TYPE_MENU_ITEM</option>
+            <option value="menu_type">COM_REMOVESAMPLEDATA_TYPE_MENU_TYPE</option>
+            <option value="module">COM_REMOVESAMPLEDATA_TYPE_MODULE</option>
+            <option value="field">COM_REMOVESAMPLEDATA_TYPE_FIELD</option>
+            <option value="field_group">COM_REMOVESAMPLEDATA_TYPE_FIELD_GROUP</option>
+            <option value="workflow">COM_REMOVESAMPLEDATA_TYPE_WORKFLOW</option>
+            <option value="workflow_stage">COM_REMOVESAMPLEDATA_TYPE_WORKFLOW_STAGE</option>
+            <option value="workflow_transition">COM_REMOVESAMPLEDATA_TYPE_WORKFLOW_TRANSITION</option>
+        </field>
+
+        <field
+            name="status"
+            type="list"
+            label="COM_REMOVESAMPLEDATA_ITEMS_FILTER_STATUS"
+            onchange="this.form.submit();">
+            <option value="">COM_REMOVESAMPLEDATA_FILTER_ANY_STATUS</option>
+            <option value="pristine">COM_REMOVESAMPLEDATA_STATUS_PRISTINE</option>
+            <option value="edited">COM_REMOVESAMPLEDATA_STATUS_EDITED</option>
+        </field>
+    </fields>
+
+    <fields name="list">
+        <field
+            name="fullordering"
+            type="list"
+            label="JGLOBAL_SORT_BY"
+            default="source ASC"
+            onchange="this.form.submit();"
+            validate="options">
+            <option value="">JGLOBAL_SORT_BY</option>
+            <option value="source ASC">COM_REMOVESAMPLEDATA_ITEMS_SORT_SOURCE_ASC</option>
+            <option value="source DESC">COM_REMOVESAMPLEDATA_ITEMS_SORT_SOURCE_DESC</option>
+            <option value="type ASC">COM_REMOVESAMPLEDATA_ITEMS_SORT_TYPE_ASC</option>
+            <option value="type DESC">COM_REMOVESAMPLEDATA_ITEMS_SORT_TYPE_DESC</option>
+            <option value="title ASC">COM_REMOVESAMPLEDATA_ITEMS_SORT_TITLE_ASC</option>
+            <option value="title DESC">COM_REMOVESAMPLEDATA_ITEMS_SORT_TITLE_DESC</option>
+            <option value="status ASC">COM_REMOVESAMPLEDATA_ITEMS_SORT_STATUS_ASC</option>
+            <option value="status DESC">COM_REMOVESAMPLEDATA_ITEMS_SORT_STATUS_DESC</option>
+        </field>
+
+        <field
+            name="limit"
+            type="limitbox"
+            label="JGLOBAL_LIST_LIMIT"
+            default="25"
+            onchange="this.form.submit();" />
+    </fields>
+</form>
