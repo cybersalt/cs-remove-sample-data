@@ -2,6 +2,16 @@
     <h1>Changelog - Remove Sample Data</h1>
 
     <div class="version">
+        <h2>🚀 Version 1.0.1 <span class="version-badge">May 28, 2026</span></h2>
+
+        <h3>🔧 Improvements</h3>
+        <ul>
+            <li><strong>Update server moved to Cybersalt-hosted endpoint.</strong> The Joomla update check now goes through <code>https://www.cybersalt.com/index.php?option=com_csreleasemanager&amp;task=api.updatexml&amp;format=raw&amp;element=com_removesampledata</code> (served by cs-Release-Manager) rather than the static GitHub raw URL. cybersalt.com is now the single source of truth for available releases.</li>
+            <li>The static <code>update.xml</code> on GitHub raw is retained as a fallback so sites still running v1.0.0 can find v1.0.1 and migrate.</li>
+        </ul>
+    </div>
+
+    <div class="version">
         <h2>🚀 Version 1.0.0 <span class="version-badge">May 28, 2026</span></h2>
 
         <p>First public release.</p>

@@ -1,5 +1,11 @@
 # Changelog
 
+## 🚀 Version 1.0.1 (May 28, 2026)
+
+### 🔧 Improvements
+- **Update server moved to Cybersalt-hosted endpoint.** The Joomla update check now goes through `https://www.cybersalt.com/index.php?option=com_csreleasemanager&task=api.updatexml&format=raw&element=com_removesampledata` (served by cs-Release-Manager) rather than the static GitHub raw URL. Future versions are published through cs-Release-Manager so cybersalt.com is the single source of truth for available releases.
+- The static `update.xml` on GitHub raw is retained as a fallback so sites still running v1.0.0 (whose manifest points at the old URL) can find v1.0.1 and migrate. From v1.0.1 onwards the cs-Release-Manager endpoint is authoritative.
+
 ## 🚀 Version 1.0.0 (May 28, 2026)
 
 First public release.
