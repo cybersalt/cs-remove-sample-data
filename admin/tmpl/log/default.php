@@ -33,7 +33,7 @@ $token   = Session::getFormToken();
     foreach ($cards as $card): ?>
         <div class="col-sm-6 col-md mb-2">
             <a href="#" class="text-decoration-none rsd-stat-filter" data-filter="<?php echo $this->escape($card['filter']); ?>">
-                <div class="card text-white <?php echo $card['class']; ?>">
+                <div class="card text-white <?php echo $this->escape($card['class']); ?>">
                     <div class="card-body py-2">
                         <h2 class="mb-0"><?php echo (int) $card['value']; ?></h2>
                         <small><?php echo Text::_($card['label']); ?></small>
@@ -94,7 +94,7 @@ $token   = Session::getFormToken();
                 <tr data-level="<?php echo $this->escape($entry->level); ?>"
                     data-created="<?php echo $this->escape($entry->created); ?>">
                     <td><code><?php echo $this->escape($entry->created); ?></code></td>
-                    <td><span class="badge <?php echo $levelClass; ?>"><?php echo $this->escape($entry->level); ?></span></td>
+                    <td><span class="badge <?php echo $this->escape($levelClass); ?>"><?php echo $this->escape($entry->level); ?></span></td>
                     <td><code class="small"><?php echo $this->escape(substr($entry->run_kind . ':' . $entry->run_id, 0, 14)); ?>&hellip;</code></td>
                     <td><?php echo $this->escape($entry->action); ?></td>
                     <td>

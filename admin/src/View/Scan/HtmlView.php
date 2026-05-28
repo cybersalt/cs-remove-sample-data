@@ -9,6 +9,7 @@ namespace Cybersalt\Component\Removesampledata\Administrator\View\Scan;
 
 \defined('_JEXEC') or die;
 
+use Cybersalt\Component\Removesampledata\Administrator\Helper\PermissionHelper;
 use Joomla\CMS\Factory;
 use Joomla\CMS\HTML\HTMLHelper;
 use Joomla\CMS\Language\Text;
@@ -22,6 +23,11 @@ class HtmlView extends BaseHtmlView
 
     public function display($tpl = null)
     {
+        // Honour the removesampledata.scan ACL action. The component dispatcher
+        // already enforces core.manage; this is the per-view gate that admins
+        // can grant separately from the manage privilege via permissions.
+        PermissionHelper::requireScan();
+
         $input      = Factory::getApplication()->getInput();
         $this->kind = $input->getCmd('kind', 'blog') === 'multilang' ? 'multilang' : 'blog';
 
@@ -50,6 +56,13 @@ class HtmlView extends BaseHtmlView
         // Control: no-store) guarantees the user always runs the current
         // build's code. The file is the source of truth; this just reads
         // it and emits it inline on each render.
+        //
+        // SAFETY: these paths MUST remain hardcoded constants. Never accept
+        // any portion of these paths from a request, query string, or any
+        // other user-influenced source. file_get_contents reading + inline
+        // emission is safe only because the file is the extension's own
+        // asset; if the path ever becomes dynamic this turns into a
+        // file-disclosure / inline-script-injection primitive.
         $jsPath  = JPATH_ROOT . '/media/com_removesampledata/js/admin.js';
         $cssPath = JPATH_ROOT . '/media/com_removesampledata/css/admin.css';
         if (is_file($cssPath)) {

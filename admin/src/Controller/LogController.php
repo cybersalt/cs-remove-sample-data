@@ -43,10 +43,24 @@ class LogController extends BaseController
         header('Content-Type: text/csv; charset=utf-8');
         header('Content-Disposition: attachment; filename="' . preg_replace('/[^A-Za-z0-9._-]/', '-', $filename) . '"');
         $out = fopen('php://output', 'w');
+
+        // CSV-injection sanitiser. Cells that begin with =, +, -, @, tab or
+        // carriage return are interpreted as formulas by Excel/LibreOffice/
+        // Numbers when the CSV is opened. Log rows include user-influenced
+        // strings (article titles, exception messages) so we prefix any such
+        // cell with a single apostrophe before writing.
+        $sanitize = static function ($cell) {
+            $s = (string) $cell;
+            if ($s !== '' && in_array($s[0], ['=', '+', '-', '@', "\t", "\r"], true)) {
+                return "'" . $s;
+            }
+            return $s;
+        };
+
         if ($rows) {
-            fputcsv($out, array_keys($rows[0]));
+            fputcsv($out, array_map($sanitize, array_keys($rows[0])));
             foreach ($rows as $row) {
-                fputcsv($out, $row);
+                fputcsv($out, array_map($sanitize, $row));
             }
         } else {
             fputcsv($out, ['id', 'created', 'user_id', 'run_id', 'run_kind', 'level', 'action', 'item_type', 'item_id', 'item_label', 'detail']);

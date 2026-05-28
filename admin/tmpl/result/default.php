@@ -73,7 +73,7 @@ $runId    = $result['run_id'] ?? '';
                     ?>
                         <tr>
                             <td><code><?php echo $this->escape($entry->created); ?></code></td>
-                            <td><span class="badge <?php echo $levelClass; ?>"><?php echo $this->escape($entry->level); ?></span></td>
+                            <td><span class="badge <?php echo $this->escape($levelClass); ?>"><?php echo $this->escape($entry->level); ?></span></td>
                             <td><?php echo $this->escape($entry->action); ?></td>
                             <td>
                                 <?php if ($entry->item_type): ?>

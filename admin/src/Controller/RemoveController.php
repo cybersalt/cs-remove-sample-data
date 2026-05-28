@@ -40,61 +40,62 @@ class RemoveController extends BaseController
      */
     private function verifySubmission(): void
     {
-        // Tier 1: try Joomla's standard CSRF token.
+        // Tier 1: Joomla's standard CSRF token (validates against the live
+        // session). If valid, return.
         $session   = $this->app->getSession();
         $formToken = $session->getFormToken();
         $input     = $this->app->getInput();
-        $diag      = [];
 
-        $diag[] = 't1-name=' . substr($formToken, 0, 6) . '...';
         if ($input->get($formToken, '', 'alnum') === '1') {
             return;
         }
         if ($input->post->get($formToken, '', 'alnum') === '1') {
             return;
         }
-        $diag[] = 't1-not-found';
 
-        // Tier 2: same-origin check.
-        $server = $input->server;
-
-        $siteRoot = \Joomla\CMS\Uri\Uri::root();
-        $siteHost = parse_url($siteRoot, PHP_URL_HOST);
-        $diag[]   = 't2-expected=' . ($siteHost ?: 'NULL');
-
+        // Tier 2: same-origin check via Origin/Referer host. Browsers strip
+        // both on cross-origin POST so an attacker on another domain cannot
+        // forge them. This is a defence-in-depth fallback for the legitimate
+        // case where the session token rotated mid-page (e.g. Remember-Me
+        // re-auth) — without it the user gets an unrecoverable token error
+        // even though their submission is genuinely same-origin.
+        $server      = $input->server;
+        $siteHost    = parse_url(\Joomla\CMS\Uri\Uri::root(), PHP_URL_HOST) ?: '';
         $origin      = (string) $server->get('HTTP_ORIGIN', '', 'string');
         $referer     = (string) $server->get('HTTP_REFERER', '', 'string');
-        $originHost  = $origin  !== '' ? parse_url($origin, PHP_URL_HOST)  : null;
-        $refererHost = $referer !== '' ? parse_url($referer, PHP_URL_HOST) : null;
+        $originHost  = $origin  !== '' ? (parse_url($origin, PHP_URL_HOST)  ?: '') : '';
+        $refererHost = $referer !== '' ? (parse_url($referer, PHP_URL_HOST) ?: '') : '';
 
-        $diag[] = 'origin=' . ($originHost ?: '-');
-        $diag[] = 'referer=' . ($refererHost ?: '-');
-
-        if ($siteHost) {
-            if ($originHost !== null && strcasecmp($originHost, $siteHost) === 0) {
+        if ($siteHost !== '') {
+            if ($originHost !== '' && strcasecmp($originHost, $siteHost) === 0) {
                 \Joomla\CMS\Log\Log::add('com_removesampledata: token stale; Origin same-origin OK.', \Joomla\CMS\Log\Log::INFO, 'com_removesampledata');
                 return;
             }
-            if ($refererHost !== null && strcasecmp($refererHost, $siteHost) === 0) {
+            if ($refererHost !== '' && strcasecmp($refererHost, $siteHost) === 0) {
                 \Joomla\CMS\Log\Log::add('com_removesampledata: token stale; Referer same-origin OK.', \Joomla\CMS\Log\Log::INFO, 'com_removesampledata');
                 return;
             }
         }
 
-        // Both tiers failed — redirect back to the dashboard with the diagnostic
-        // shown as a flash message so the user (Tim) can SEE what didn't match
-        // instead of getting a generic 403 error page. Throwing here renders
-        // an ugly Joomla error page; the message in the yellow alert box on
-        // the dashboard is far more useful for diagnosis.
+        // Both tiers failed — bounce back to the dashboard with a clean
+        // session-expired message. The diagnostic values are HTML-escaped
+        // because Joomla's flash-message renderer treats messages as HTML
+        // (it permits <br>, <strong>, etc.), and the Origin/Referer values
+        // are attacker-influenceable on a cross-origin CSRF attempt.
+        // The token prefix that earlier versions exposed for debugging has
+        // been dropped — leaking even six hex chars of the form token to a
+        // user-visible message is gratuitous.
+        $safeOrigin   = htmlspecialchars($originHost  !== '' ? $originHost  : '-', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        $safeReferer  = htmlspecialchars($refererHost !== '' ? $refererHost : '-', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        $safeExpected = htmlspecialchars($siteHost    !== '' ? $siteHost    : '-', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+
         $this->app->enqueueMessage(
-            \Joomla\CMS\Language\Text::_('JINVALID_TOKEN') . ' [' . implode(' | ', $diag) . ']',
+            \Joomla\CMS\Language\Text::_('JINVALID_TOKEN')
+                . ' [origin=' . $safeOrigin . ' | referer=' . $safeReferer . ' | expected=' . $safeExpected . ']',
             'error'
         );
         $this->setRedirect(\Joomla\CMS\Router\Route::_('index.php?option=com_removesampledata&view=dashboard', false));
         $this->redirect();
-        // redirect() exits the application; the throw below is unreachable
-        // but satisfies static analyzers and serves as a safety net.
-        throw new \RuntimeException(\Joomla\CMS\Language\Text::_('JINVALID_TOKEN'), 403);
     }
 
     public function run(): void
@@ -150,7 +151,12 @@ class RemoveController extends BaseController
             $this->setRedirect(Route::_('index.php?option=com_removesampledata&view=result', false));
         } catch (\Throwable $e) {
             $logger->error('exception', $kind, '', 'Removal aborted with exception', $e->getMessage());
-            $this->app->enqueueMessage(Text::sprintf('COM_REMOVESAMPLEDATA_ERROR_FAILED', $e->getMessage()), 'error');
+            // Escape the exception message before interpolating into a flash
+            // message — Joomla renders messages as HTML, and exception
+            // strings can carry attacker-influenced content via DB errors
+            // echoing item titles.
+            $safeMessage = htmlspecialchars($e->getMessage(), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+            $this->app->enqueueMessage(Text::sprintf('COM_REMOVESAMPLEDATA_ERROR_FAILED', $safeMessage), 'error');
             $this->setRedirect(Route::_('index.php?option=com_removesampledata&view=dashboard', false));
         }
     }

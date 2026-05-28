@@ -32,7 +32,10 @@ class TokenController extends BaseController
         $token = Session::getFormToken();
 
         $this->app->setHeader('Content-Type', 'text/plain; charset=utf-8', true);
-        $this->app->setHeader('Cache-Control', 'no-store, no-cache, must-revalidate', true);
+        $this->app->setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0', true);
+        $this->app->setHeader('Pragma', 'no-cache', true);
+        $this->app->setHeader('Expires', '0', true);
+        $this->app->setHeader('X-Content-Type-Options', 'nosniff', true);
         $this->app->sendHeaders();
 
         echo $token;

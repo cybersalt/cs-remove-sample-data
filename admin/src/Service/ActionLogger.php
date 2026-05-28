@@ -90,8 +90,11 @@ class ActionLogger
             $this->db->setQuery($query)->execute();
         } catch (\Throwable $e) {
             // Last resort: write to PHP's error log so the failure is
-            // visible somewhere, but never throw.
-            @error_log('com_removesampledata logger failed: ' . $e->getMessage());
+            // visible somewhere, but never throw. We only log the
+            // exception class name — message strings can carry fragments
+            // of failing SQL including user-influenced item titles, and
+            // PHP error logs are sometimes web-readable on shared hosts.
+            @error_log('com_removesampledata logger failed: ' . get_class($e));
         }
     }
 

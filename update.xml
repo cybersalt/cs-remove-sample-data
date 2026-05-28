@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<updates>
+    <update>
+        <name>Remove Sample Data</name>
+        <description>Remove the items installed by Joomla's Blog and Multilingual sample data plugins, with preview, per-item opt-out, type/title/status filters, and a full activity log.</description>
+        <element>com_removesampledata</element>
+        <type>component</type>
+        <version>1.0.0</version>
+        <infourl title="Remove Sample Data">https://github.com/cybersalt/cs-remove-sample-data</infourl>
+        <downloads>
+            <downloadurl type="full" format="zip">https://github.com/cybersalt/cs-remove-sample-data/releases/download/v1.0.0/com_removesampledata_v1.0.0.zip</downloadurl>
+        </downloads>
+        <targetplatform name="joomla" version="5\.[0-9]+|6\.[0-9]+" />
+        <php_minimum>8.1</php_minimum>
+        <maintainer>Cybersalt</maintainer>
+        <maintainerurl>https://cybersalt.com</maintainerurl>
+        <changelogurl>https://raw.githubusercontent.com/cybersalt/cs-remove-sample-data/main/CHANGELOG.html</changelogurl>
+    </update>
+</updates>

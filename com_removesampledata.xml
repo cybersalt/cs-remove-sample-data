@@ -7,11 +7,17 @@
     <license>GNU General Public License version 2 or later; see LICENSE.txt</license>
     <authorEmail>support@cybersalt.com</authorEmail>
     <authorUrl>https://cybersalt.com</authorUrl>
-    <version>1.0.20</version>
+    <version>1.0.0</version>
     <description>COM_REMOVESAMPLEDATA_XML_DESCRIPTION</description>
     <namespace path="src">Cybersalt\Component\Removesampledata</namespace>
 
     <scriptfile>script.php</scriptfile>
+
+    <updateservers>
+        <server type="extension" priority="1" name="Remove Sample Data">https://raw.githubusercontent.com/cybersalt/cs-remove-sample-data/main/update.xml</server>
+    </updateservers>
+
+    <changelogurl>https://raw.githubusercontent.com/cybersalt/cs-remove-sample-data/main/CHANGELOG.html</changelogurl>
 
     <install>
         <sql>

@@ -124,7 +124,7 @@ $listDirn  = $this->escape($this->state->get('list.direction'));
                         </td>
                         <td>
                             <?php if ($editUrl): ?>
-                                <a href="<?php echo $editUrl; ?>"
+                                <a href="<?php echo $this->escape($editUrl); ?>"
                                    title="<?php echo $this->escape(Text::_('COM_REMOVESAMPLEDATA_OPEN_IN_JOOMLA')); ?>">
                                     <strong><?php echo $this->escape((string) $item['title']); ?></strong>
                                 </a>
