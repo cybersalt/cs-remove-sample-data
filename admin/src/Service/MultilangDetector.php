@@ -47,9 +47,9 @@ class MultilangDetector
         return [
             'menu_types'           => $menuTypes,
             'menu_items'           => $this->findMenuItems(),
-            'modules'              => $this->findModules(),
-            'categories'           => $this->findCategories(),
-            'articles'             => $this->findArticles(),
+            'modules'              => $this->findModules(array_column($menuTypes, 'menutype')),
+            'categories'           => $categories = $this->findCategories(),
+            'articles'             => $this->findArticles(array_column($categories, 'id')),
             'associations'         => $this->findAssociationGroups(),
             'languagefilter'       => $this->getLanguageFilterStatus(),
             'main_menu_module'     => $this->getMainMenuModuleState(),
@@ -124,23 +124,42 @@ class MultilangDetector
         return $items;
     }
 
-    private function findModules(): array
+    private function findModules(array $sampleMenutypes): array
     {
+        // The multilingual plugin creates one "Language Switcher" module
+        // (mod_languages, language "*") and one "Main menu <lang>" mod_menu
+        // module per language that shows the matching mainmenu-<lang> menu.
         $query = $this->db->createQuery()
             ->select($this->db->quoteName(['id', 'title', 'module', 'position', 'language', 'client_id', 'params']))
             ->from($this->db->quoteName('#__modules'))
-            ->where($this->db->quoteName('module') . ' = ' . $this->db->quote(SampleDataInventory::MULTILANG_LANGSWITCH_ELEMENT))
+            ->where($this->db->quoteName('module') . ' IN (' . $this->db->quote(SampleDataInventory::MULTILANG_LANGSWITCH_ELEMENT) . ',' . $this->db->quote('mod_menu') . ')')
             ->where($this->db->quoteName('client_id') . ' = 0');
 
-        $rows = $this->db->setQuery($query)->loadObjectList() ?: [];
-        $items = [];
+        $rows          = $this->db->setQuery($query)->loadObjectList() ?: [];
+        $sampleTypeSet = array_flip($sampleMenutypes);
+        $items         = [];
         foreach ($rows as $row) {
-            // Heuristic: language switcher uses language='*'; per-language menu modules
-            // use a specific language code and reference a mainmenu-* menutype in params.
-            $isSwitcher = ($row->language === '*');
-            $isPerLang  = ($row->language !== '*' && strpos((string) $row->params, '"mainmenu-') !== false);
-            if (!$isSwitcher && !$isPerLang) {
-                continue;
+            $reasons = [];
+            if ($row->module === SampleDataInventory::MULTILANG_LANGSWITCH_ELEMENT) {
+                if ($row->language !== '*') {
+                    continue;
+                }
+                $kind = 'language-switcher';
+                // A site's own switcher normally has its own title; only the
+                // plugin's default title counts as pristine.
+                if ($row->title !== 'Language Switcher') {
+                    $reasons[] = 'title-modified';
+                }
+            } else {
+                $params   = json_decode((string) $row->params, true) ?: [];
+                $menutype = (string) ($params['menutype'] ?? '');
+                if ($row->language === '*' || !isset($sampleTypeSet[$menutype])) {
+                    continue;
+                }
+                $kind = 'language-menu';
+                if ($row->title !== 'Main menu ' . $row->language) {
+                    $reasons[] = 'title-modified';
+                }
             }
             $items[] = [
                 'id'           => (int) $row->id,
@@ -148,9 +167,9 @@ class MultilangDetector
                 'module'       => $row->module,
                 'position'     => $row->position,
                 'language'     => $row->language,
-                'kind'         => $isSwitcher ? 'language-switcher' : 'language-menu',
-                'edited'       => false,
-                'edit_reasons' => [],
+                'kind'         => $kind,
+                'edited'       => !empty($reasons),
+                'edit_reasons' => $reasons,
             ];
         }
         return $items;
@@ -173,29 +192,8 @@ class MultilangDetector
             if (!$this->aliasEndsWithLang((string) $row->alias, (string) $row->language)) {
                 continue;
             }
-            $items[] = [
-                'id'           => (int) $row->id,
-                'title'        => $row->title,
-                'alias'        => $row->alias,
-                'language'     => $row->language,
-                'edited'       => false,
-                'edit_reasons' => [],
-            ];
-        }
-        return $items;
-    }
-
-    private function findArticles(): array
-    {
-        $query = $this->db->createQuery()
-            ->select($this->db->quoteName(['id', 'title', 'alias', 'language']))
-            ->from($this->db->quoteName('#__content'))
-            ->where($this->db->quoteName('language') . ' <> ' . $this->db->quote('*'));
-
-        $rows = $this->db->setQuery($query)->loadObjectList() ?: [];
-        $items = [];
-        foreach ($rows as $row) {
-            if (!$this->aliasEndsWithLang((string) $row->alias, (string) $row->language)) {
+            // The plugin titles its category "<Category> (<lang>)".
+            if (!$this->titleEndsWithLang((string) $row->title, (string) $row->language)) {
                 continue;
             }
             $items[] = [
@@ -208,6 +206,41 @@ class MultilangDetector
             ];
         }
         return $items;
+    }
+
+    private function findArticles(array $sampleCatIds = []): array
+    {
+        $query = $this->db->createQuery()
+            ->select($this->db->quoteName(['id', 'title', 'alias', 'language', 'catid']))
+            ->from($this->db->quoteName('#__content'))
+            ->where($this->db->quoteName('language') . ' <> ' . $this->db->quote('*'));
+
+        $rows = $this->db->setQuery($query)->loadObjectList() ?: [];
+        $items = [];
+        foreach ($rows as $row) {
+            if (!$this->aliasEndsWithLang((string) $row->alias, (string) $row->language)
+                || !$this->titleEndsWithLang((string) $row->title, (string) $row->language)) {
+                continue;
+            }
+            // The plugin files each sample article in its own per-language
+            // sample category.
+            $reasons = in_array((int) $row->catid, array_map('intval', $sampleCatIds), true) ? [] : ['outside-sample-category'];
+            $items[] = [
+                'id'           => (int) $row->id,
+                'title'        => $row->title,
+                'alias'        => $row->alias,
+                'language'     => $row->language,
+                'edited'       => !empty($reasons),
+                'edit_reasons' => $reasons,
+            ];
+        }
+        return $items;
+    }
+
+    private function titleEndsWithLang(string $title, string $language): bool
+    {
+        $lc = strtolower($language);
+        return $lc !== '' && $lc !== '*' && str_ends_with(strtolower($title), ' (' . $lc . ')');
     }
 
     private function aliasEndsWithLang(string $alias, string $language): bool

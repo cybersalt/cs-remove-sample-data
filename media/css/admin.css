@@ -63,3 +63,10 @@ tr.rsd-row-edited > td:first-child {
 #rsd-confirm .form-check-label {
     margin-left: 0.5rem !important;
 }
+
+/* Stat cards: Atum colours headings itself, which made the white-on-navy
+   "Total" numbers (log and Browse items) nearly invisible. Let the number follow the card text colour. */
+.card.text-white h2,
+.card.text-dark h2 {
+    color: inherit;
+}

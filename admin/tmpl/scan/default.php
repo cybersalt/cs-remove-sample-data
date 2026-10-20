@@ -245,7 +245,7 @@ usort($presentTitles, fn ($a, $b) => strcmp(mb_strtolower($a), mb_strtolower($b)
                             <input type="checkbox"
                                    id="rsd-master-toggle"
                                    class="form-check-input"
-                                   checked
+                                   <?php echo $edited === 0 ? 'checked' : ''; ?>
                                    aria-label="<?php echo $this->escape(Text::_('COM_REMOVESAMPLEDATA_MASTER_TOGGLE_ARIA')); ?>">
                         </th>
                         <th><?php echo Text::_('COM_REMOVESAMPLEDATA_COL_TYPE'); ?></th>
@@ -268,7 +268,7 @@ usort($presentTitles, fn ($a, $b) => strcmp(mb_strtolower($a), mb_strtolower($b)
                                        class="form-check-input rsd-remove"
                                        name="remove[<?php echo $this->escape($row['group']); ?>][]"
                                        value="<?php echo (int) $row['id']; ?>"
-                                       checked
+                                       <?php echo $row['edited'] ? '' : 'checked'; ?>
                                        aria-label="<?php echo $this->escape(Text::_('COM_REMOVESAMPLEDATA_COL_REMOVE')); ?>">
                             </td>
                             <td>
@@ -296,7 +296,7 @@ usort($presentTitles, fn ($a, $b) => strcmp(mb_strtolower($a), mb_strtolower($b)
                             <td>
                                 <?php if ($row['edited']): ?>
                                     <span class="badge bg-warning text-dark"
-                                          title="<?php echo $this->escape(implode(', ', $row['edit_reasons'])); ?>">
+                                          title="<?php echo $this->escape(implode('; ', array_map(fn ($r) => Text::_('COM_REMOVESAMPLEDATA_REASON_' . strtoupper(str_replace('-', '_', (string) $r))), $row['edit_reasons']))); ?>">
                                         <?php echo Text::_('COM_REMOVESAMPLEDATA_STATUS_EDITED'); ?>
                                     </span>
                                 <?php else: ?>

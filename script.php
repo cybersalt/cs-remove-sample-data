@@ -29,7 +29,7 @@ return new class () implements InstallerScriptInterface {
         }
         if (version_compare(PHP_VERSION, self::MIN_PHP, '<')) {
             Factory::getApplication()->enqueueMessage(
-                'Remove Sample Data requires PHP ' . self::MIN_PHP . ' or higher. You are running PHP ' . PHP_VERSION . '.',
+                'Cybersalt Remove Sample Data requires PHP ' . self::MIN_PHP . ' or higher. You are running PHP ' . PHP_VERSION . '.',
                 'error'
             );
             return false;
@@ -37,7 +37,7 @@ return new class () implements InstallerScriptInterface {
         $joomlaVersion = (new \Joomla\CMS\Version())->getShortVersion();
         if (version_compare($joomlaVersion, self::MIN_JOOMLA, '<')) {
             Factory::getApplication()->enqueueMessage(
-                'Remove Sample Data requires Joomla ' . self::MIN_JOOMLA . ' or higher. You are running Joomla ' . $joomlaVersion . '.',
+                'Cybersalt Remove Sample Data requires Joomla ' . self::MIN_JOOMLA . ' or higher. You are running Joomla ' . $joomlaVersion . '.',
                 'error'
             );
             return false;

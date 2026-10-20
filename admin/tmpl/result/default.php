@@ -39,6 +39,9 @@ $runId    = $result['run_id'] ?? '';
             </h3>
             <p class="fs-5">
                 <span class="badge bg-success"><?php echo (int) $counts['removed']; ?> <?php echo Text::_('COM_REMOVESAMPLEDATA_RESULT_REMOVED'); ?></span>
+                <?php if (!empty($counts['skipped'])): ?>
+                    <span class="badge bg-warning text-dark"><?php echo (int) $counts['skipped']; ?> <?php echo Text::_('COM_REMOVESAMPLEDATA_RESULT_SKIPPED'); ?></span>
+                <?php endif; ?>
                 <?php if (!empty($counts['failed'])): ?>
                     <span class="badge bg-danger"><?php echo (int) $counts['failed']; ?> <?php echo Text::_('COM_REMOVESAMPLEDATA_RESULT_FAILED'); ?></span>
                 <?php endif; ?>

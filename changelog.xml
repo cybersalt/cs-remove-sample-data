@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Joomla changelog feed for com_removesampledata (shown by the Extensions manager). Keep in step with CHANGELOG.md / CHANGELOG.html. -->
+<changelogs>
+    <changelog>
+        <element>com_removesampledata</element>
+        <type>component</type>
+        <version>1.1.0</version>
+        <security>
+            <item>Your own articles in the sample Blog category disappeared from the Articles list. The sample Blog category uses the sample &quot;Blog Workflow&quot;, so articles you wrote in it sit in one of that workflow's stages. Removing the workflow left them pointing at a stage that no longer existed, and Joomla's Articles list hides such articles. Kept articles are now moved to the default stage of your default workflow first, and kept categories that used the sample workflow are set back to inherit their workflow.</item>
+            <item>Your own articles with sample-looking titles were removed. Blog detection matched articles by title or alias alone, so a site's own "About" page (or "Help", "Joomla", "Typography") was listed as sample data and ticked for removal. An article now only counts as untouched sample data when it sits in one of the four sample categories; anywhere else it is marked Edited.</item>
+            <item>Your own modules with sample-looking titles were removed. Modules were matched by title only, so a site's own "Search", "Image" or "Site Information" module was removed. A module now has to match both the sample title and the sample module type (and site/administrator side). A sample menu module that now shows a different menu is marked Edited.</item>
+            <item>Menus with a sample title but a different menu type were treated as sample data. The blog plugin's menus have menu types that start with 0, 1 or 2 (for example 0main-menu-blog). A site's own "Bottom Menu" with any other menu type is now marked Edited, and its menu items are no longer listed.</item>
+            <item>Categories could be deleted out from under your own articles. Removing a sample category that also held your own articles (or sub-categories) left those articles pointing at a category that no longer existed. Such categories are now marked Edited, and at removal time a category that still holds content, or a menu that still holds menu items, is kept and reported as skipped.</item>
+            <item>Sample tags you had reused were removed from your content. A sample tag ("Joomla 6", "Love", ...) that you had also put on your own content is now marked Edited.</item>
+            <item>Edited items now start unticked. Anything marked Edited is no longer ticked for removal by default; you tick it yourself if you want it gone. The Edited badge's tooltip now explains why each item was flagged.</item>
+            <item>Custom-field values of other content could be deleted. Field values were deleted by article id without checking the field's context, which could also remove values belonging to a user, contact or category that happened to have the same id. Only article-field values are deleted now. Field, field group and workflow detection is also limited to the article context.</item>
+            <item>Multilingual removal deleted language associations of other items. Associations were deleted by id without their context, so removing sample articles or categories could also remove associations of menu items or articles that happened to share the id. Each delete is now scoped to its own context.</item>
+        </security>
+        <fix>
+            <item>The Log retention option did nothing. Log entries older than the configured number of days are now deleted at the start of each removal run.</item>
+            <item>The multilingual side effects never ran. The Language Filter plugin was never disabled and the unpublished Main Menu module was never republished, because the removal step emptied the settings it needed. After a multilingual removal the site was left with the Language Filter on and no visible main menu. Both side effects now work, and unticking the Language Filter switch now keeps the plugin enabled (before, the switch was ignored).</item>
+            <item>Activity-log table re-created if missing. A 1.1.0 schema update creates the log table when it is missing, instead of the log and result pages failing with a database error.</item>
+            <item>Multilingual per-language menu modules were left behind. The "Main menu &lt;language&amp;gt;" modules the multilingual plugin creates are menu modules, but detection only looked at language-switcher modules, so they stayed on the site pointing at deleted menus. They are now detected and removed. Multilingual articles and categories must now also carry the plugin's " (xx-xx)" title suffix.</item>
+            <item>Removal left orphaned rows behind. Deleting articles, categories and modules left their ACL asset rows, workflow associations, tag-map and UCM rows, and module-to-page assignments in the database. These are now removed with the item, and the category, menu and tag trees are rebuilt afterwards.</item>
+        </fix>
+        <change>
+            <item>Stat cards: the Total number was unreadable. Atum&apos;s heading colour overrode the card&apos;s white text, so the number on the navy Total card (log and Browse items) was dark on dark. The numbers now follow the card&apos;s text colour.</item>
+            <item>Renamed to Cybersalt Remove Sample Data. The component's display name follows the Cybersalt naming convention.</item>
+            <item>Joomla changelog feed. The manifest now points at a Joomla-format changelog.xml, so the changelog button in the Extensions manager works.</item>
+            <item>Licence files. The repository and package now carry the verbatim GPL-2.0 text in LICENSE; the copyright notice moved to NOTICE.</item>
+            <item>JED Checker clean-up. Replaced a PHP error_log() fallback with Joomla's logger, fixed an unknown language key and a language string with a leading space.</item>
+        </change>
+    </changelog>
+    <changelog>
+        <element>com_removesampledata</element>
+        <type>component</type>
+        <version>1.0.1</version>
+        <change>
+            <item>Update server moved to the Cybersalt Release Manager endpoint on cybersalt.com.</item>
+        </change>
+    </changelog>
+    <changelog>
+        <element>com_removesampledata</element>
+        <type>component</type>
+        <version>1.0.0</version>
+        <addition>
+            <item>First public release: detects and removes the items installed by Joomla's Blog and Multilingual sample-data plugins, with a preview, per-item opt-out and an activity log.</item>
+        </addition>
+    </changelog>
+</changelogs>

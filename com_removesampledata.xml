@@ -1,23 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
 <extension type="component" method="upgrade">
     <name>COM_REMOVESAMPLEDATA</name>
-    <author>Cybersalt</author>
-    <creationDate>2026-05-28</creationDate>
-    <copyright>Copyright (C) 2026 Cybersalt. All rights reserved.</copyright>
-    <license>GNU General Public License version 2 or later; see LICENSE.txt</license>
+    <author>Cybersalt Consulting Ltd</author>
+    <creationDate>2026-10-20</creationDate>
+    <copyright>Copyright (C) 2026 Cybersalt Consulting Ltd. All rights reserved.</copyright>
+    <license>GNU General Public License version 2 or later; see LICENSE</license>
     <authorEmail>support@cybersalt.com</authorEmail>
-    <authorUrl>https://cybersalt.com</authorUrl>
-    <version>1.0.1</version>
+    <authorUrl>https://www.cybersalt.com</authorUrl>
+    <version>1.1.0</version>
     <description>COM_REMOVESAMPLEDATA_XML_DESCRIPTION</description>
     <namespace path="src">Cybersalt\Component\Removesampledata</namespace>
 
     <scriptfile>script.php</scriptfile>
 
     <updateservers>
-        <server type="extension" priority="1" name="Remove Sample Data">https://www.cybersalt.com/index.php?option=com_csreleasemanager&amp;task=api.updatexml&amp;format=raw&amp;element=com_removesampledata</server>
+        <server type="extension" priority="1" name="Cybersalt Remove Sample Data">https://www.cybersalt.com/index.php?option=com_csreleasemanager&amp;task=api.updatexml&amp;format=raw&amp;element=com_removesampledata</server>
     </updateservers>
 
-    <changelogurl>https://raw.githubusercontent.com/cybersalt/cs-remove-sample-data/main/CHANGELOG.html</changelogurl>
+    <changelogurl>https://raw.githubusercontent.com/cybersalt/cs-remove-sample-data/main/changelog.xml</changelogurl>
 
     <install>
         <sql>

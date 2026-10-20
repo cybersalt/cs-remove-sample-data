@@ -123,6 +123,21 @@ class RemoveController extends BaseController
 
         $logger = new ActionLogger($db, $kind);
 
+        // Apply the "Log retention" option: drop entries older than N days.
+        $retention = (int) $params->get('log_retention_days', 90);
+        if ($retention > 0) {
+            try {
+                $cutoff = Factory::getDate('-' . $retention . ' days')->toSql();
+                $db->setQuery(
+                    $db->createQuery()
+                        ->delete($db->quoteName('#__removesampledata_log'))
+                        ->where($db->quoteName('created') . ' < ' . $db->quote($cutoff))
+                )->execute();
+            } catch (\Throwable $e) {
+                // Pruning the log must never block a removal.
+            }
+        }
+
         // The scan view posts remove[<group>][] = id for items the user ticked
         // for removal. Anything NOT ticked stays on the site.
         $toRemove = $input->get('remove', [], 'array');
@@ -138,7 +153,9 @@ class RemoveController extends BaseController
                 $detector = new MultilangDetector($db);
                 $detected = $detector->detect();
                 $selected = $this->filterByRemove($detected, $toRemove);
-                $disableFilter = (bool) $input->getInt('disable_languagefilter', 1);
+                // An unticked checkbox is simply absent from the POST, so the default
+                // must be 0 (before 1.1.0 it was 1, which ignored the switch).
+                $disableFilter = (bool) $input->getInt('disable_languagefilter', 0);
                 $restoreMenu   = (bool) $params->get('restore_main_menu_module', 1);
                 $remover  = new MultilangRemover($db, $logger);
                 $counts   = $remover->remove($selected, $disableFilter, $restoreMenu);
@@ -165,9 +182,12 @@ class RemoveController extends BaseController
     {
         $selected = [];
         foreach ($detected as $group => $items) {
-            if (!is_array($items)) {
+            if (!is_array($items) || ($items !== [] && !array_is_list($items))) {
                 // Non-list payload (e.g. multilang's languagefilter / main_menu_module
                 // metadata) gets passed through untouched — the remover needs it.
+                // Before 1.1.0 these associative arrays were treated as item
+                // lists and emptied, so the Language Filter plugin was never
+                // disabled and the main menu module never republished.
                 $selected[$group] = $items;
                 continue;
             }

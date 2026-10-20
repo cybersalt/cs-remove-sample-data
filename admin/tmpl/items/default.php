@@ -93,7 +93,7 @@ $listDirn  = $this->escape($this->state->get('list.direction'));
                     <th scope="col"><?php echo HTMLHelper::_('searchtools.sort', 'COM_REMOVESAMPLEDATA_COL_TYPE', 'type', $listDirn, $listOrder); ?></th>
                     <th scope="col"><?php echo HTMLHelper::_('searchtools.sort', 'COM_REMOVESAMPLEDATA_COL_TITLE', 'title', $listDirn, $listOrder); ?></th>
                     <th scope="col"><?php echo Text::_('COM_REMOVESAMPLEDATA_COL_DETAILS'); ?></th>
-                    <th scope="col" style="width:1%"><?php echo Text::_('JID'); ?></th>
+                    <th scope="col" style="width:1%"><?php echo Text::_('JGRID_HEADING_ID'); ?></th>
                 </tr>
             </thead>
             <tbody>

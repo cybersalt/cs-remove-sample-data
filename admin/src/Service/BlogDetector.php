@@ -50,13 +50,17 @@ class BlogDetector
             $titleMap['categories']
         )));
 
+        $categories = $this->findCategories($aliasMap['categories'], $titleMap['categories']);
+        $articles   = $this->findArticles($aliasMap['articles'], $titleMap['articles'], array_column($categories, 'id'));
+        $menuTypes  = $this->findMenuTypes($titleMap['menu_types']);
+
         $result = [
-            'articles'             => $this->findArticles($aliasMap['articles'], $titleMap['articles']),
-            'categories'           => $this->findCategories($aliasMap['categories'], $titleMap['categories']),
-            'tags'                 => $this->findTags($aliasMap['tags'], $titleMap['tags']),
+            'articles'             => $articles,
+            'categories'           => $this->flagCategoriesWithOtherContent($categories, array_column($articles, 'id')),
+            'tags'                 => $this->flagTagsUsedElsewhere($this->findTags($aliasMap['tags'], $titleMap['tags']), array_column($articles, 'id')),
             'menu_items'           => $this->findMenuItems($aliasMap['menu_items'], $menuItemValidTitles),
-            'menu_types'           => $this->findMenuTypes($titleMap['menu_types']),
-            'modules'              => $this->findModules($titleMap['modules']),
+            'menu_types'           => $menuTypes,
+            'modules'              => $this->findModules(array_column($menuTypes, 'menutype')),
             'field_groups'         => $this->findFieldGroups($titleMap['field_group']),
             'fields'               => $this->findFields($titleMap['field']),
             'workflows'            => $this->findWorkflows($titleMap['workflow']),
@@ -300,13 +304,14 @@ class BlogDetector
         return $lang;
     }
 
-    private function findArticles(array $aliases, array $titles): array
+    private function findArticles(array $aliases, array $titles, array $sampleCatIds = []): array
     {
         if (!$aliases && !$titles) {
             return [];
         }
+        $sampleCatSet = array_flip(array_map('intval', $sampleCatIds));
         $query = $this->db->createQuery()
-            ->select($this->db->quoteName(['id', 'title', 'alias', 'created', 'modified']))
+            ->select($this->db->quoteName(['id', 'title', 'alias', 'catid', 'created', 'modified']))
             ->from($this->db->quoteName('#__content'));
 
         $where = [];
@@ -326,6 +331,14 @@ class BlogDetector
         foreach ($rows as $row) {
             $expectedTitle = isset($titleSet[$row->title]);
             $editReasons   = $this->editReasons($expectedTitle, $row);
+
+            // The blog plugin files every sample article in one of its own
+            // four categories. An article with a sample-looking title or
+            // alias (e.g. "About") that lives anywhere else is far more
+            // likely to be the site's own content.
+            if (!isset($sampleCatSet[(int) $row->catid])) {
+                $editReasons[] = 'outside-sample-category';
+            }
 
             $items[] = [
                 'id'           => (int) $row->id,
@@ -367,7 +380,7 @@ class BlogDetector
             return [];
         }
         $query = $this->db->createQuery()
-            ->select($this->db->quoteName(['id', 'title', 'alias', 'extension', 'created_time', 'modified_time']))
+            ->select($this->db->quoteName(['id', 'title', 'alias', 'extension', 'level', 'created_time', 'modified_time']))
             ->from($this->db->quoteName('#__categories'))
             ->where($this->db->quoteName('extension') . ' = ' . $this->db->quote('com_content'));
 
@@ -385,17 +398,95 @@ class BlogDetector
 
         $items = [];
         foreach ($rows as $row) {
-            $expectedTitle = isset($titleSet[$row->title]);
-            $edited = !$expectedTitle;
+            $reasons = [];
+            if (!isset($titleSet[$row->title])) {
+                $reasons[] = 'title-modified';
+            }
+            // The blog plugin creates its categories at the top level.
+            if ((int) $row->level !== 1) {
+                $reasons[] = 'not-top-level';
+            }
             $items[] = [
                 'id'           => (int) $row->id,
                 'title'        => $row->title,
                 'alias'        => $row->alias,
-                'edited'       => $edited,
-                'edit_reasons' => $edited ? ['title-modified'] : [],
+                'edited'       => !empty($reasons),
+                'edit_reasons' => $reasons,
             ];
         }
         return $items;
+    }
+
+    /**
+     * A sample category that now also holds the site's own articles or
+     * sub-categories must not be deleted silently: removing the category row
+     * would leave those articles pointing at a category that no longer
+     * exists. Flag it so it starts unticked in the scan view.
+     */
+    private function flagCategoriesWithOtherContent(array $categories, array $sampleArticleIds): array
+    {
+        if (!$categories) {
+            return [];
+        }
+        $catIds = array_map('intval', array_column($categories, 'id'));
+        $in     = implode(',', $catIds);
+
+        $query = $this->db->createQuery()
+            ->select([$this->db->quoteName('catid'), 'COUNT(*) AS ' . $this->db->quoteName('n')])
+            ->from($this->db->quoteName('#__content'))
+            ->where($this->db->quoteName('catid') . ' IN (' . $in . ')')
+            ->group($this->db->quoteName('catid'));
+        if ($sampleArticleIds) {
+            $query->where($this->db->quoteName('id') . ' NOT IN (' . implode(',', array_map('intval', $sampleArticleIds)) . ')');
+        }
+        $otherArticles = $this->db->setQuery($query)->loadAssocList('catid', 'n') ?: [];
+
+        $query = $this->db->createQuery()
+            ->select([$this->db->quoteName('parent_id'), 'COUNT(*) AS ' . $this->db->quoteName('n')])
+            ->from($this->db->quoteName('#__categories'))
+            ->where($this->db->quoteName('parent_id') . ' IN (' . $in . ')')
+            ->where($this->db->quoteName('id') . ' NOT IN (' . $in . ')')
+            ->group($this->db->quoteName('parent_id'));
+        $otherChildren = $this->db->setQuery($query)->loadAssocList('parent_id', 'n') ?: [];
+
+        foreach ($categories as &$cat) {
+            if (!empty($otherArticles[$cat['id']]) || !empty($otherChildren[$cat['id']])) {
+                $cat['edit_reasons'][] = 'contains-other-content';
+                $cat['edited']         = true;
+            }
+        }
+        unset($cat);
+        return $categories;
+    }
+
+    /**
+     * A sample tag (e.g. "Joomla 6", "Love") that the site has since used on
+     * its own content is flagged rather than removed silently.
+     */
+    private function flagTagsUsedElsewhere(array $tags, array $sampleArticleIds): array
+    {
+        if (!$tags) {
+            return [];
+        }
+        $query = $this->db->createQuery()
+            ->select([$this->db->quoteName('tag_id'), 'COUNT(*) AS ' . $this->db->quoteName('n')])
+            ->from($this->db->quoteName('#__contentitem_tag_map'))
+            ->where($this->db->quoteName('tag_id') . ' IN (' . implode(',', array_map('intval', array_column($tags, 'id'))) . ')')
+            ->group($this->db->quoteName('tag_id'));
+        $sampleSet = array_map('intval', $sampleArticleIds);
+        $query->where('NOT (' . $this->db->quoteName('type_alias') . ' = ' . $this->db->quote('com_content.article')
+            . ($sampleSet ? ' AND ' . $this->db->quoteName('content_item_id') . ' IN (' . implode(',', $sampleSet) . ')' : ' AND 1 = 0')
+            . ')');
+        $usedElsewhere = $this->db->setQuery($query)->loadAssocList('tag_id', 'n') ?: [];
+
+        foreach ($tags as &$tag) {
+            if (!empty($usedElsewhere[$tag['id']])) {
+                $tag['edit_reasons'][] = 'used-by-other-content';
+                $tag['edited']         = true;
+            }
+        }
+        unset($tag);
+        return $tags;
     }
 
     private function findTags(array $aliases, array $titles): array
@@ -447,12 +538,16 @@ class BlogDetector
         $rows = $this->db->setQuery($query)->loadObjectList() ?: [];
         $items = [];
         foreach ($rows as $row) {
+            // The blog plugin builds each menutype as "<0|1|2><title>", e.g.
+            // "0main-menu-blog". A menu with a matching title but any other
+            // menutype (a site's own "Bottom Menu") is not sample data.
+            $isSampleMenutype = (bool) preg_match('/^[0-2]\D/', (string) $row->menutype);
             $items[] = [
                 'id'           => (int) $row->id,
                 'title'        => $row->title,
                 'menutype'     => $row->menutype,
-                'edited'       => false,
-                'edit_reasons' => [],
+                'edited'       => !$isSampleMenutype,
+                'edit_reasons' => $isSampleMenutype ? [] : ['not-sample-menutype'],
             ];
         }
         return $items;
@@ -466,7 +561,7 @@ class BlogDetector
         // items inherit titles from their target article/category, so the
         // valid-title set must include those too (the caller has already
         // unioned them in).
-        $menuTypes     = $this->findMenuTypes($this->expandMenuTypeTitles());
+        $menuTypes     = array_filter($this->findMenuTypes($this->expandMenuTypeTitles()), fn ($m) => empty($m['edited']));
         $menutypeNames = array_column($menuTypes, 'menutype');
         if (!$menutypeNames) {
             return [];
@@ -520,27 +615,89 @@ class BlogDetector
         return $this->expandWithLanguageSuffixes($titles, 'title');
     }
 
-    private function findModules(array $titles): array
+    /**
+     * Module type (and client) each sample module is created with, by its
+     * position in SampleDataInventory::BLOG_MODULE_KEYS. Titles such as
+     * "Search", "Image" or "Site Information" are common on real sites, so a
+     * module only counts as sample data when its title AND type both match.
+     * The article modules accept the older per-type modules too (Joomla 5.0/5.1
+     * sample data used mod_articles_archive / _latest / _category).
+     */
+    private const BLOG_MODULE_SPECS = [
+        0  => [['mod_menu'], 0],
+        1  => [['mod_menu'], 0],
+        2  => [['mod_syndicate'], 0],
+        3  => [['mod_articles', 'mod_articles_archive'], 0],
+        4  => [['mod_articles', 'mod_articles_latest', 'mod_articles_category'], 0],
+        5  => [['mod_articles', 'mod_articles_category', 'mod_articles_latest'], 0],
+        6  => [['mod_menu'], 0],
+        7  => [['mod_finder', 'mod_search'], 0],
+        8  => [['mod_custom'], 0],
+        9  => [['mod_tags_popular'], 0],
+        10 => [['mod_tags_similar'], 0],
+        11 => [['mod_stats_admin'], 1],
+    ];
+
+    private function findModules(array $sampleMenutypes): array
     {
-        if (!$titles) {
+        // title => list of [allowed module types, client id]
+        $specs = [];
+        foreach ($this->candidateLanguageCodes() as $code) {
+            $lang = $this->loadBlogLanguage($code);
+            if (!$lang) {
+                continue;
+            }
+            foreach (SampleDataInventory::BLOG_MODULE_KEYS as $i => $key) {
+                $title = $lang->_($key);
+                if ($title === '' || strpos($title, 'PLG_SAMPLEDATA_BLOG_') === 0 || !isset(self::BLOG_MODULE_SPECS[$i])) {
+                    continue;
+                }
+                foreach ($this->expandWithLanguageSuffixes([$title], 'title') as $t) {
+                    $specs[$t][] = self::BLOG_MODULE_SPECS[$i];
+                }
+            }
+        }
+        if (!$specs) {
             return [];
         }
+        $titles = array_keys($specs);
         $query = $this->db->createQuery()
-            ->select($this->db->quoteName(['id', 'title', 'module', 'position', 'client_id']))
+            ->select($this->db->quoteName(['id', 'title', 'module', 'position', 'client_id', 'params']))
             ->from($this->db->quoteName('#__modules'))
             ->where($this->db->quoteName('title') . ' IN (' . implode(',', array_map([$this->db, 'quote'], $titles)) . ')');
 
         $rows = $this->db->setQuery($query)->loadObjectList() ?: [];
+        $sampleMenutypeSet = array_flip($sampleMenutypes);
         $items = [];
         foreach ($rows as $row) {
+            $match = false;
+            foreach ($specs[$row->title] ?? [] as [$types, $client]) {
+                if (in_array($row->module, $types, true) && (int) $row->client_id === $client) {
+                    $match = true;
+                    break;
+                }
+            }
+            if (!$match) {
+                continue;
+            }
+            $reasons = [];
+            // A sample menu module shows one of the sample menus. If it now
+            // shows a different menu, the site has repurposed it.
+            if ($row->module === 'mod_menu') {
+                $params   = json_decode((string) $row->params, true) ?: [];
+                $menutype = (string) ($params['menutype'] ?? '');
+                if (!isset($sampleMenutypeSet[$menutype])) {
+                    $reasons[] = 'shows-other-menu';
+                }
+            }
             $items[] = [
                 'id'           => (int) $row->id,
                 'title'        => $row->title,
                 'module'       => $row->module,
                 'position'     => $row->position,
                 'client_id'    => (int) $row->client_id,
-                'edited'       => false,
-                'edit_reasons' => [],
+                'edited'       => !empty($reasons),
+                'edit_reasons' => $reasons,
             ];
         }
         return $items;
@@ -554,6 +711,7 @@ class BlogDetector
         $query = $this->db->createQuery()
             ->select($this->db->quoteName(['id', 'title']))
             ->from($this->db->quoteName('#__fields_groups'))
+            ->where($this->db->quoteName('context') . ' = ' . $this->db->quote('com_content.article'))
             ->where($this->db->quoteName('title') . ' IN (' . implode(',', array_map([$this->db, 'quote'], $titles)) . ')');
 
         $rows = $this->db->setQuery($query)->loadObjectList() ?: [];
@@ -575,6 +733,7 @@ class BlogDetector
         $query = $this->db->createQuery()
             ->select($this->db->quoteName(['id', 'title', 'name']))
             ->from($this->db->quoteName('#__fields'))
+            ->where($this->db->quoteName('context') . ' = ' . $this->db->quote('com_content.article'))
             ->where($this->db->quoteName('title') . ' IN (' . implode(',', array_map([$this->db, 'quote'], $titles)) . ')');
 
         $rows = $this->db->setQuery($query)->loadObjectList() ?: [];
@@ -597,6 +756,7 @@ class BlogDetector
         $query = $this->db->createQuery()
             ->select($this->db->quoteName(['id', 'title']))
             ->from($this->db->quoteName('#__workflows'))
+            ->where($this->db->quoteName('extension') . ' = ' . $this->db->quote('com_content.article'))
             ->where($this->db->quoteName('title') . ' IN (' . implode(',', array_map([$this->db, 'quote'], $titles)) . ')');
 
         $rows = $this->db->setQuery($query)->loadObjectList() ?: [];

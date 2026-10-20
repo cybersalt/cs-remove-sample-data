@@ -30,46 +30,56 @@ class BlogRemover
      */
     public function remove(array $selected): array
     {
-        $counts = ['removed' => 0, 'failed' => 0];
+        $counts = ['removed' => 0, 'failed' => 0, 'skipped' => 0];
 
         $this->logger->info('start', 'blog', '', 'Blog sample data removal started');
+        $cleaner = new RelatedRowsCleaner($this->db, $this->logger);
+        $ids     = fn (string $group) => array_map(fn ($i) => (int) $i['id'], $selected[$group] ?? []);
 
-        // 1. Modules
+        // 1. Modules (with their page assignments and ACL assets)
+        $cleaner->beforeModules($ids('modules'));
         foreach ($selected['modules'] ?? [] as $item) {
-            $this->deleteRow('#__modules_menu', 'moduleid', (int) $item['id']);
             $this->deleteRow('#__modules', 'id', (int) $item['id'], $item['title'], 'module', $counts);
         }
 
         // 2. Menu items
+        $cleaner->beforeMenuItems($ids('menu_items'));
         foreach ($selected['menu_items'] ?? [] as $item) {
             $this->deleteRow('#__menu', 'id', (int) $item['id'], $item['title'], 'menu_item', $counts);
         }
 
-        // 3. Menu types
+        // 3. Menu types — only once they are empty, so items the user kept
+        //    never end up in a menu that no longer exists.
         foreach ($selected['menu_types'] ?? [] as $item) {
+            if (!empty($item['menutype']) && $cleaner->menuTypeStillInUse((string) $item['menutype'])) {
+                $this->logger->warning('skip', 'menu_type', (string) $item['id'], $item['title'], 'Menu still has items you chose to keep');
+                $counts['skipped']++;
+                continue;
+            }
             $this->deleteRow('#__menu_types', 'id', (int) $item['id'], $item['title'], 'menu_type', $counts);
         }
 
-        // 4. Article -> field values, frontpage assignments, then article rows
-        if (!empty($selected['articles'])) {
-            $articleIds = array_map(fn ($a) => (int) $a['id'], $selected['articles']);
-            $this->bulkDelete('#__fields_values', [
-                'item_id'     => $articleIds,
-            ], 'field_value', $counts, false);
-            $this->bulkDelete('#__content_frontpage', [
-                'content_id'  => $articleIds,
-            ], 'content_frontpage', $counts, false);
-            foreach ($selected['articles'] as $item) {
-                $this->deleteRow('#__content', 'id', (int) $item['id'], $item['title'], 'article', $counts);
-            }
+        // 4. Articles, after their field values, featured rows, workflow
+        //    associations, tag maps and assets
+        $cleaner->beforeArticles($ids('articles'));
+        foreach ($selected['articles'] ?? [] as $item) {
+            $this->deleteRow('#__content', 'id', (int) $item['id'], $item['title'], 'article', $counts);
         }
 
-        // 5. Content categories
+        // 5. Content categories — skipped if they still hold articles or
+        //    sub-categories the user is keeping.
         foreach ($selected['categories'] ?? [] as $item) {
+            if ($cleaner->categoryStillInUse((int) $item['id'])) {
+                $this->logger->warning('skip', 'category', (string) $item['id'], $item['title'], 'Category still holds content you chose to keep');
+                $counts['skipped']++;
+                continue;
+            }
+            $cleaner->beforeCategories([(int) $item['id']]);
             $this->deleteRow('#__categories', 'id', (int) $item['id'], $item['title'], 'category', $counts);
         }
 
         // 6. Workflow transitions -> stages -> workflow
+        $cleaner->beforeWorkflows($ids('workflows'), $ids('workflow_stages'), $ids('workflow_transitions'));
         foreach ($selected['workflow_transitions'] ?? [] as $item) {
             $this->deleteRow('#__workflow_transitions', 'id', (int) $item['id'], $item['title'], 'workflow_transition', $counts);
         }
@@ -81,25 +91,29 @@ class BlogRemover
         }
 
         // 7. Tags
+        $cleaner->beforeTags($ids('tags'));
         foreach ($selected['tags'] ?? [] as $item) {
-            $this->deleteRow('#__contentitem_tag_map', 'tag_id', (int) $item['id'], '', '', $counts, false);
             $this->deleteRow('#__tags', 'id', (int) $item['id'], $item['title'], 'tag', $counts);
         }
 
         // 8. Fields then field groups
+        $cleaner->beforeFields($ids('fields'));
         foreach ($selected['fields'] ?? [] as $item) {
-            $this->deleteRow('#__fields_values', 'field_id', (int) $item['id'], '', '', $counts, false);
             $this->deleteRow('#__fields', 'id', (int) $item['id'], $item['title'], 'field', $counts);
         }
+        $cleaner->beforeFieldGroups($ids('field_groups'));
         foreach ($selected['field_groups'] ?? [] as $item) {
             $this->deleteRow('#__fields_groups', 'id', (int) $item['id'], $item['title'], 'field_group', $counts);
         }
+
+        // 9. Re-number the nested-set trees rows were taken out of.
+        $cleaner->rebuildTrees();
 
         $this->logger->success('finish', 'blog', '', 'Blog sample data removal complete', $counts);
         return $counts;
     }
 
-    private function deleteRow(string $table, string $idCol, int $id, string $label = '', string $logType = '', array &$counts = null, bool $countIt = true): void
+    private function deleteRow(string $table, string $idCol, int $id, string $label = '', string $logType = '', ?array &$counts = null, bool $countIt = true): void
     {
         try {
             $query = $this->db->createQuery()
@@ -118,28 +132,6 @@ class BlogRemover
                 $counts['failed']++;
             }
             $this->logger->error('delete', $logType ?: $table, (string) $id, $label, $e->getMessage());
-        }
-    }
-
-    private function bulkDelete(string $table, array $whereInMap, string $logType, array &$counts, bool $countIt = true): void
-    {
-        foreach ($whereInMap as $col => $ids) {
-            if (!$ids) {
-                continue;
-            }
-            try {
-                $query = $this->db->createQuery()
-                    ->delete($this->db->quoteName($table))
-                    ->where($this->db->quoteName($col) . ' IN (' . implode(',', array_map('intval', $ids)) . ')');
-                $this->db->setQuery($query)->execute();
-                $affected = (int) $this->db->getAffectedRows();
-                $this->logger->info('bulk-delete', $logType, '', $table . ' rows', ['affected' => $affected]);
-                if ($countIt) {
-                    $counts['removed'] += $affected;
-                }
-            } catch (\Throwable $e) {
-                $this->logger->error('bulk-delete', $logType, '', $table, $e->getMessage());
-            }
         }
     }
 }

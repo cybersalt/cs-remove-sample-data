@@ -29,7 +29,7 @@ class MultilangRemover
      */
     public function remove(array $selected, bool $disableFilter, bool $restoreMenu): array
     {
-        $counts = ['removed' => 0, 'failed' => 0];
+        $counts = ['removed' => 0, 'failed' => 0, 'skipped' => 0];
         $this->logger->info('start', 'multilang', '', 'Multilingual sample data removal started');
 
         // Disable language filter plugin (if asked).
@@ -37,44 +37,49 @@ class MultilangRemover
             $this->setExtensionEnabled((int) $selected['languagefilter']['extension_id'], 0, 'plg_system_languagefilter');
         }
 
+        $cleaner = new RelatedRowsCleaner($this->db, $this->logger);
+        $ids     = fn (string $group) => array_map(fn ($i) => (int) $i['id'], $selected[$group] ?? []);
+
         // Modules: language switcher + per-language menu modules.
+        $cleaner->beforeModules($ids('modules'));
         foreach ($selected['modules'] ?? [] as $item) {
-            $this->deleteRow('#__modules_menu', 'moduleid', (int) $item['id']);
             $this->deleteRow('#__modules', 'id', (int) $item['id'], $item['title'], 'module', $counts);
         }
 
         // Menu items (homes + per-lang items) — must precede menu-type deletion.
-        if (!empty($selected['menu_items'])) {
-            $menuItemIds = array_map(fn ($i) => (int) $i['id'], $selected['menu_items']);
-            $this->bulkDelete('#__associations', ['id' => $menuItemIds, 'context' => ['com_menus.item']], 'association', $counts, false);
-            foreach ($selected['menu_items'] as $item) {
-                $this->deleteRow('#__menu', 'id', (int) $item['id'], $item['title'], 'menu_item', $counts);
-            }
+        $cleaner->beforeMenuItems($ids('menu_items'));
+        foreach ($selected['menu_items'] ?? [] as $item) {
+            $this->deleteRow('#__menu', 'id', (int) $item['id'], $item['title'], 'menu_item', $counts);
         }
 
-        // Per-language menu types.
+        // Per-language menu types, once empty.
         foreach ($selected['menu_types'] ?? [] as $item) {
+            if (!empty($item['menutype']) && $cleaner->menuTypeStillInUse((string) $item['menutype'])) {
+                $this->logger->warning('skip', 'menu_type', (string) $item['id'], $item['title'], 'Menu still has items you chose to keep');
+                $counts['skipped']++;
+                continue;
+            }
             $this->deleteRow('#__menu_types', 'id', (int) $item['id'], $item['title'], 'menu_type', $counts);
         }
 
-        // Per-language articles.
-        if (!empty($selected['articles'])) {
-            $articleIds = array_map(fn ($a) => (int) $a['id'], $selected['articles']);
-            $this->bulkDeleteSimple('#__associations', 'id', $articleIds, 'association', $counts, false);
-            $this->bulkDeleteSimple('#__content_frontpage', 'content_id', $articleIds, 'content_frontpage', $counts, false);
-            foreach ($selected['articles'] as $item) {
-                $this->deleteRow('#__content', 'id', (int) $item['id'], $item['title'], 'article', $counts);
-            }
+        // Per-language articles (associations scoped to com_content.item).
+        $cleaner->beforeArticles($ids('articles'));
+        foreach ($selected['articles'] ?? [] as $item) {
+            $this->deleteRow('#__content', 'id', (int) $item['id'], $item['title'], 'article', $counts);
         }
 
-        // Per-language categories.
-        if (!empty($selected['categories'])) {
-            $catIds = array_map(fn ($c) => (int) $c['id'], $selected['categories']);
-            $this->bulkDeleteSimple('#__associations', 'id', $catIds, 'association', $counts, false);
-            foreach ($selected['categories'] as $item) {
-                $this->deleteRow('#__categories', 'id', (int) $item['id'], $item['title'], 'category', $counts);
+        // Per-language categories, unless they still hold content being kept.
+        foreach ($selected['categories'] ?? [] as $item) {
+            if ($cleaner->categoryStillInUse((int) $item['id'])) {
+                $this->logger->warning('skip', 'category', (string) $item['id'], $item['title'], 'Category still holds content you chose to keep');
+                $counts['skipped']++;
+                continue;
             }
+            $cleaner->beforeCategories([(int) $item['id']]);
+            $this->deleteRow('#__categories', 'id', (int) $item['id'], $item['title'], 'category', $counts);
         }
+
+        $cleaner->rebuildTrees();
 
         // Restore main menu module if asked.
         if ($restoreMenu && !empty($selected['main_menu_module']['present']) && (int) $selected['main_menu_module']['published'] === 0) {
@@ -118,7 +123,7 @@ class MultilangRemover
         }
     }
 
-    private function deleteRow(string $table, string $idCol, int $id, string $label = '', string $logType = '', array &$counts = null, bool $countIt = true): void
+    private function deleteRow(string $table, string $idCol, int $id, string $label = '', string $logType = '', ?array &$counts = null, bool $countIt = true): void
     {
         try {
             $query = $this->db->createQuery()
@@ -137,52 +142,6 @@ class MultilangRemover
                 $counts['failed']++;
             }
             $this->logger->error('delete', $logType ?: $table, (string) $id, $label, $e->getMessage());
-        }
-    }
-
-    private function bulkDeleteSimple(string $table, string $col, array $ids, string $logType, array &$counts, bool $countIt = true): void
-    {
-        if (!$ids) {
-            return;
-        }
-        try {
-            $query = $this->db->createQuery()
-                ->delete($this->db->quoteName($table))
-                ->where($this->db->quoteName($col) . ' IN (' . implode(',', array_map('intval', $ids)) . ')');
-            $this->db->setQuery($query)->execute();
-            $affected = (int) $this->db->getAffectedRows();
-            $this->logger->info('bulk-delete', $logType, '', $table . ' rows', ['affected' => $affected]);
-            if ($countIt) {
-                $counts['removed'] += $affected;
-            }
-        } catch (\Throwable $e) {
-            $this->logger->error('bulk-delete', $logType, '', $table, $e->getMessage());
-        }
-    }
-
-    private function bulkDelete(string $table, array $where, string $logType, array &$counts, bool $countIt = true): void
-    {
-        try {
-            $query = $this->db->createQuery()->delete($this->db->quoteName($table));
-            foreach ($where as $col => $values) {
-                $values = (array) $values;
-                if (!$values) {
-                    return;
-                }
-                if (is_int($values[0] ?? null)) {
-                    $query->where($this->db->quoteName($col) . ' IN (' . implode(',', array_map('intval', $values)) . ')');
-                } else {
-                    $query->where($this->db->quoteName($col) . ' IN (' . implode(',', array_map([$this->db, 'quote'], $values)) . ')');
-                }
-            }
-            $this->db->setQuery($query)->execute();
-            $affected = (int) $this->db->getAffectedRows();
-            $this->logger->info('bulk-delete', $logType, '', $table . ' rows', ['affected' => $affected]);
-            if ($countIt) {
-                $counts['removed'] += $affected;
-            }
-        } catch (\Throwable $e) {
-            $this->logger->error('bulk-delete', $logType, '', $table, $e->getMessage());
         }
     }
 }

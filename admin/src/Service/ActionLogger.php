@@ -89,12 +89,16 @@ class ActionLogger
 
             $this->db->setQuery($query)->execute();
         } catch (\Throwable $e) {
-            // Last resort: write to PHP's error log so the failure is
+            // Last resort: write to Joomla's log so the failure is
             // visible somewhere, but never throw. We only log the
             // exception class name — message strings can carry fragments
             // of failing SQL including user-influenced item titles, and
             // PHP error logs are sometimes web-readable on shared hosts.
-            @error_log('com_removesampledata logger failed: ' . get_class($e));
+            try {
+                \Joomla\CMS\Log\Log::add('com_removesampledata logger failed: ' . get_class($e), \Joomla\CMS\Log\Log::WARNING, 'com_removesampledata');
+            } catch (\Throwable $ignored) {
+                // Logging must never break a removal run.
+            }
         }
     }
 
